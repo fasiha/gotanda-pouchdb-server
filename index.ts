@@ -6,7 +6,6 @@ const app = express();
 const port = 3000;
 
 var secrets: {sessionSecret: string, github: {clientID: string, clientSecret: string}} = require('./secrets');
-passport.use
 passport.use(new GitHubStrategy({
   clientID: secrets.github.clientID,
   clientSecret: secrets.github.clientSecret,
@@ -16,6 +15,7 @@ passport.use(new GitHubStrategy({
 passport.serializeUser(function(user, cb) { cb(null, user); });
 passport.deserializeUser(function(obj, cb) { cb(null, obj); });
 
+app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to lock it. If true, all origins ok
 app.use(require('cookie-parser')());
 app.use(require('body-parser').urlencoded({extended: true}));
 app.use(require('express-session')({secret: secrets.sessionSecret, resave: true, saveUninitialized: true}));
@@ -41,4 +41,5 @@ app.get('/logout', (req, res) => {
 });
 app.get('/personal', require('connect-ensure-login').ensureLoggedIn('/'),
         (req, res) => res.send(`You must be logged in! <a href="/">Go back</a>`));
+app.get('/loginstatus', (req, res) => res.status(req.isAuthenticated() ? 200 : 401).end())
 app.listen(port, () => console.log(`Example app listening at http://127.0.0.1:${port}`));

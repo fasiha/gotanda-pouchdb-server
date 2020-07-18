@@ -1,0 +1,14 @@
+<title>My Cool Webapp!</title>
+<p>Welcome to my cool webapp! It uses a Gotanda server to store your data!</p>
+<p id="login_out"></p>
+<script>
+  (async function checkLogin() {
+    const res = await fetch('http://127.0.0.1:3000/loginstatus', { credentials: 'include' });
+    console.log(res.ok, res.status, res.statusText);
+    if (res.ok) {
+      document.querySelector("#login_out").innerHTML = 'Thanks for logging in!';
+    } else {
+      document.querySelector("#login_out").innerHTML = 'Log in';
+    }
+  })();
+</script>
