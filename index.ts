@@ -5,20 +5,28 @@ import GitHubStrategy from 'passport-github';
 const app = express();
 const port = 3000;
 
+// Import secrets from a custom file. There's better ways to do this.
 var secrets: {sessionSecret: string, github: {clientID: string, clientSecret: string}} = require('./secrets');
+// Tell Passport how we want to use GitHub auth
 passport.use(new GitHubStrategy({
   clientID: secrets.github.clientID,
   clientSecret: secrets.github.clientSecret,
   callbackURL: `http://127.0.0.1:${port}/auth/github/callback`,
 },
                                 function(accessToken, refreshToken, profile, cb) { return cb(null, profile); }));
+//
 passport.serializeUser(function(user, cb) { cb(null, user); });
 passport.deserializeUser(function(obj, cb) { cb(null, obj); });
 
 app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to lock it. If true, all origins ok
 app.use(require('cookie-parser')());
 app.use(require('body-parser').urlencoded({extended: true}));
-app.use(require('express-session')({secret: secrets.sessionSecret, resave: true, saveUninitialized: true}));
+app.use(require('express-session')({
+  secret: secrets.sessionSecret,
+  resave: true,
+  saveUninitialized: true,
+  store: new (require('level-session-store')(require('express-session')))(),
+}));
 // FIRST init express' session, THEN passport's
 app.use(passport.initialize());
 app.use(passport.session());
