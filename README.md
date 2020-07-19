@@ -2,12 +2,11 @@
 
 Clone this repo.
 
-Create `secrets.js`:
-```js
-module.exports = {
-  sessionSecret: EXPRESS_SESSION_SECRET,
-  github: {clientID: GITHUB_CLIENT_ID, clientSecret: GITHUB_CLIENT_SECRET}
-}
+Create `.env` and fill in the following:
+```
+SESSION_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
 
 Then,

@@ -10,13 +10,18 @@ import {findOrCreateGithub, getUser, IUser} from './users';
 const app = express();
 const port = 3000;
 
-// Import secrets from a custom file. There's better ways to do this.
-var secrets: {sessionSecret: string, github: {clientID: string, clientSecret: string}} = require('./secrets');
+// Use `dotenv` to load some secrets in a typesafe way leveraging io-ts
+const secrets = t.type({GITHUB_CLIENT_ID: t.string, GITHUB_CLIENT_SECRET: t.string, SESSION_SECRET: t.string});
+const Env = t.type({parsed: secrets});
+const envDecode = Env.decode(require('dotenv').config());
+if (!isRight(envDecode)) { throw new Error('invalid env'); }
+const env = envDecode.right.parsed;
+
 // Tell Passport how we want to use GitHub auth
 passport.use(new GitHubStrategy(
     {
-      clientID: secrets.github.clientID,
-      clientSecret: secrets.github.clientSecret,
+      clientID: env.GITHUB_CLIENT_ID,
+      clientSecret: env.GITHUB_CLIENT_SECRET,
       callbackURL: `http://127.0.0.1:${port}/auth/github/callback`,
     },
     // This verify function converts the GitHub profile into our app's object representing the user (IUser)
@@ -31,7 +36,7 @@ app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to 
 app.use(require('cookie-parser')());
 app.use(require('body-parser').json());
 app.use(require('express-session')({
-  secret: secrets.sessionSecret,
+  secret: env.SESSION_SECRET,
   resave: true,
   saveUninitialized: true,
   store: new (require('level-session-store')(require('express-session')))(),
