@@ -18,11 +18,21 @@ export async function sync(db: Db, parents: string[], lastSharedId: string = '',
   let newLastSharedId = toReturn.length ? toReturn[toReturn.length - 1].key.replace(prefix, '') : lastSharedId;
 
   if (newEvents.length) {
-    const now = Date.now().toString(36) + '-';
+    // we pad the date so deal with unix timestamp overflow:
+    // `new Date(parseInt('1'.padEnd(10,'0'),36))` => 5188-04-22T11:04:28.416Z.
+    // We also add a few digits of pseudo-random jitter in case this function is called multiple times in the same
+    // millisecond.
+    //
+    // This is not perfect: if this function is called twice in the same millisecond, and the first that
+    // writes picks `jitter='z'` while the second to write picks `jitter='a'`, the client after the second call might
+    // see events that it's *already* seen. We'll warn about this in the docs. One way to fix this is to switch to
+    // SQLite (transactions and auto-increment can fix this issue).
+    const jitter = Math.random().toString(36).slice(2).slice(0, 2);
+    const now = Date.now().toString(36).padStart(10, '0') + '-' + jitter + '-';
     const maxLength = newEvents.length.toString(36).length;
     const batch = db.batch();
     for (const [i, e] of newEvents.entries()) {
-      newLastSharedId = now + i.toString(36).padStart(maxLength, '0')
+      newLastSharedId = now + i.toString(36).padStart(maxLength, '0');
       const id = prefix + newLastSharedId;
       batch.put(id, e);
     }
