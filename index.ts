@@ -1,4 +1,4 @@
-import express from 'express';
+import express, {RequestHandler} from 'express';
 import {isRight} from 'fp-ts/lib/Either';
 import * as t from 'io-ts';
 import passport from 'passport';
@@ -52,8 +52,14 @@ ${req.user ? `<a href="/logout">Logout</a>` : `<a href="/auth/github">Login with
 <pre>${JSON.stringify(req.user, null, 3)}</pre>
 `));
 
-app.get('/auth/github', passport.authenticate('github'));
-app.get('/auth/github/callback', passport.authenticate('github', {failureRedirect: '/'}),
+// Via @jaredhanson: https://gist.github.com/joshbirk/1732068#gistcomment-80892
+const ensureUnauthenticated: RequestHandler = (req, res, next) => {
+  if (req.isAuthenticated()) { return res.redirect('/'); }
+  next();
+};
+
+app.get('/auth/github', ensureUnauthenticated, passport.authenticate('github'));
+app.get('/auth/github/callback', ensureUnauthenticated, passport.authenticate('github', {failureRedirect: '/'}),
         (req, res) => res.redirect('/'));
 app.get('/logout', (req, res) => {
   req.logout();
