@@ -1,6 +1,5 @@
 import levelup from 'levelup';
-type Db = ReturnType<typeof levelup>;
-var globalDb: Db = (require('level'))('gotanda-db');
+export type Db = ReturnType<typeof levelup>;
 
 function drainStream<T>(stream: NodeJS.ReadableStream): Promise<T[]> {
   const ret: T[] = [];
@@ -12,7 +11,7 @@ function drainStream<T>(stream: NodeJS.ReadableStream): Promise<T[]> {
   })
 }
 
-export async function sync(parents: string[], lastSharedId: string = '', newEvents: string[] = [], db: Db = globalDb) {
+export async function sync(db: Db, parents: string[], lastSharedId: string = '', newEvents: string[] = []) {
   const prefix = parents.join('/') + '/';
   const opts = {gt: prefix + lastSharedId, lt: prefix + '\uFE0F'};
   const toReturn: {key: string, value: string}[] = await drainStream(db.createReadStream(opts));
@@ -32,15 +31,19 @@ export async function sync(parents: string[], lastSharedId: string = '', newEven
   return {newEvents: toReturn, lastSharedId: newLastSharedId};
 }
 
+export function setup(name: string): Db { return (require('level'))(name); }
+
 if (module === require.main) {
   (async function main() {
+    var db = setup('gotanda-db-test');
+
     let lastSharedId = '';
-    let res = await sync([], lastSharedId, [], globalDb);
+    let res = await sync(db, [], lastSharedId, []);
     console.log(res);
 
     lastSharedId = res.lastSharedId;
 
     const d = (new Date()).toISOString();
-    console.log(await sync([], lastSharedId, ['hi', 'there'].map(s => `${d}: ${s}`), globalDb));
-  })()
+    console.log(await sync(db, [], lastSharedId, ['hi', 'there'].map(s => `${d}: ${s}`)));
+  })();
 }

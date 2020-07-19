@@ -1,6 +1,10 @@
 import express from 'express';
+import {isRight} from 'fp-ts/lib/Either';
+import * as t from 'io-ts';
 import passport from 'passport';
 import GitHubStrategy from 'passport-github';
+
+import {setup, sync} from './sync';
 
 const app = express();
 const port = 3000;
@@ -20,7 +24,7 @@ passport.deserializeUser(function(obj, cb) { cb(null, obj); });
 
 app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to lock it. If true, all origins ok
 app.use(require('cookie-parser')());
-app.use(require('body-parser').urlencoded({extended: true}));
+app.use(require('body-parser').json());
 app.use(require('express-session')({
   secret: secrets.sessionSecret,
   resave: true,
@@ -49,5 +53,29 @@ app.get('/logout', (req, res) => {
 });
 app.get('/personal', require('connect-ensure-login').ensureLoggedIn('/'),
         (req, res) => res.send(`You must be logged in! <a href="/">Go back</a>`));
-app.get('/loginstatus', (req, res) => res.status(req.isAuthenticated() ? 200 : 401).end())
+app.get('/loginstatus', (req, res) => res.status(req.isAuthenticated() ? 200 : 401).end());
+
+// Gotanda syncer
+var db = setup('gotanda-db-test');
+const SyncPayload = t.type({
+  lastSharedId: t.string,
+  newEvents: t.array(t.string),
+});
+// export type ISyncPayload = t.TypeOf<typeof SyncPayload>;
+app.post('/sync/users/:user/apps/:app', (req, res) => {
+  // TODO authorization
+  const {user, app} = req.params;
+  if (!(user && app && !user.includes('/') && !app.includes('/'))) {
+    res.status(400).json('bad user or app');
+    return;
+  }
+  res.setHeader('Content-Type', 'application/json');
+  const body = SyncPayload.decode(req.body);
+  if (!isRight(body)) {
+    res.status(400).json('bad payload');
+    return;
+  }
+  sync(db, [user, app], body.right.lastSharedId, body.right.newEvents).then(ret => res.json(ret));
+});
+
 app.listen(port, () => console.log(`Example app listening at http://127.0.0.1:${port}`));
