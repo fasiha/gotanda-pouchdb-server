@@ -15,19 +15,19 @@ export async function sync(db: Db, parents: string[], lastSharedId: string = '',
   const prefix = parents.join('/') + '/';
   const opts = {gt: prefix + lastSharedId, lt: prefix + '\uFE0F'};
   const toReturn: {key: string, value: string}[] = await drainStream(db.createReadStream(opts));
+  let newLastSharedId = toReturn.length ? toReturn[toReturn.length - 1].key.replace(prefix, '') : lastSharedId;
 
   if (newEvents.length) {
     const now = Date.now().toString(36) + '-';
     const maxLength = newEvents.length.toString(36).length;
     const batch = db.batch();
     for (const [i, e] of newEvents.entries()) {
-      const id = prefix + now + i.toString(36).padStart(maxLength, '0');
+      newLastSharedId = now + i.toString(36).padStart(maxLength, '0')
+      const id = prefix + newLastSharedId;
       batch.put(id, e);
     }
     await batch.write();
   }
-
-  const newLastSharedId = toReturn.length ? toReturn[toReturn.length - 1].key.replace(prefix, '') : lastSharedId;
   return {newEvents: toReturn, lastSharedId: newLastSharedId};
 }
 
