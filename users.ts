@@ -1,7 +1,11 @@
+import {randomBytes as randomBytesOrig} from 'crypto';
 import {isRight} from 'fp-ts/lib/Either';
 import * as t from 'io-ts';
 import levelup from 'levelup';
 import GitHubStrategy from 'passport-github';
+import {promisify} from 'util';
+
+const randomBytes = promisify(randomBytesOrig);
 
 export type Db = ReturnType<typeof levelup>;
 const db: Db = (require('level'))('gotanda-users-db', {valueEncoding: 'json'});
@@ -12,28 +16,57 @@ const User = t.intersection([
 ]);
 export type IUser = t.TypeOf<typeof User>;
 
-export async function getUser(key: string): Promise<IUser|undefined> {
+async function getKey(key: string): Promise<any|undefined> {
   try {
     const ret = await db.get(key);
-    const decoded = User.decode(ret);
-    if (isRight(decoded)) { return decoded.right; }
-    console.error(`io-ts decode error for User object for key ${key}`);
     return ret;
   } catch { return undefined; }
 }
 
-export async function findOrCreateGithub(profile: GitHubStrategy.Profile): Promise<IUser> {
-  // `key` represents our app's ID for this user. We should use an autoincrementing or randomly-generated ID (check for
-  // collisions with existing users if randomly generated), but we're being lazy and using something tied to GitHub,
-  // which will change once we allow other SSO logins. When we add that, we'll have to search for the user with this
-  // GitHub id and return that.
-  const key = `github-${profile.id}`;
+export async function getUser(key: string): Promise<IUser|undefined> {
+  const ret = await getKey(key);
+  if (ret === undefined) { return undefined; }
+  const decoded = User.decode(ret);
+  if (isRight(decoded)) { return decoded.right; }
+  console.error(`io-ts decode error for User object for key ${key}`);
+  return ret;
+}
 
-  const existing = await getUser(key);
-  if (existing) { return existing; }
+/*
+The database stores the following keys and values:
+- `gotanda-<random string not including slash>` => IUser object (i.e., a Gotanda user record)
+- `github-<GitHub id>` => a string which is a Gotanda user record's key (i.e., `gotanda-<random string>`)
+
+When we get a GitHub profile, we look up whether `github-<id>` exists in the database. If it does, we fetch its value
+and in turn use that as a key to look up the Gotanda user record.
+*/
+export async function findOrCreateGithub(profile: GitHubStrategy.Profile): Promise<IUser> {
+  const githubId = `github-${profile.id}`;
+  const hit = await getKey(githubId);
+  if (hit) {
+    // GitHub user is also a Gotanda user!
+    const existing = await getUser(hit);
+    if (existing) {
+      return existing;
+    } else {
+      // We had a record of this GitHub user but not the Gotanda user it pointed to?
+      // Something very strange must have happened but we can deal with it.
+      console.error(`${githubId} points to ${hit} which doesn't exist. Creating.`);
+    }
+  }
+  // new user
+
+  // find a random string that we don't already have in the db
+  let newGotandaId = ''; // Not used for return logins
+  while (!newGotandaId) {
+    // RFC 4648 §5: base64url
+    const attempt = (await randomBytes(8)).toString('base64').replace(/\//g, '_').replace(/\+/g, '-');
+    if (!(await getKey(attempt))) { newGotandaId = 'gotanda-' + attempt; }
+  }
 
   // unclear why I need {...profile}, but just `profile` makes typescript unhappy
-  const ret: IUser = {github: {...profile}, gotandaId: key};
-  await db.put(key, ret);
+  const ret: IUser = {github: {...profile}, gotandaId: newGotandaId};
+
+  await db.batch().put(githubId, newGotandaId).put(newGotandaId, ret).write();
   return ret;
 }
