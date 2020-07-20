@@ -67,8 +67,11 @@ export async function findOrCreateGithub(profile: GitHubStrategy.Profile): Promi
     if (!(await getKey(attempt))) { newGotandaId = 'gotanda-' + attempt; }
   }
 
-  // unclear why I need {...profile}, but just `profile` makes typescript unhappy
-  const ret: IUser = {github: {...profile}, gotandaId: newGotandaId, apiTokens: []};
+  const github = {...profile};
+  // I'm not comfortable storing this. I'd like to store even less (no name, avatar, etc.) but for now:
+  delete github['_json'];
+  delete github['_raw'];
+  const ret: IUser = {github, gotandaId: newGotandaId, apiTokens: []};
 
   await db.batch().put(githubId, newGotandaId).put(newGotandaId, ret).write();
   return ret;
