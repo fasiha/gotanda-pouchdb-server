@@ -8,7 +8,7 @@ import {promisify} from 'util';
 const randomBytes = promisify(randomBytesOrig);
 
 export type Db = ReturnType<typeof levelup>;
-const db: Db = (require('level'))('gotanda-users-db', {valueEncoding: 'json'});
+const db: Db = (require('level'))(__dirname + '/.data/gotanda-users-db', {valueEncoding: 'json'});
 
 const User = t.intersection([
   t.type({gotandaId: t.string, apiTokens: t.array(t.type({token: t.string, name: t.string}))}),

@@ -51,7 +51,7 @@ app.use(require('express-session')({
   secret: env.SESSION_SECRET,
   resave: true,
   saveUninitialized: true,
-  store: new (require('level-session-store')(require('express-session')))(),
+  store: new (require('level-session-store')(require('express-session')))(__dirname + '/.data/level-session-store'),
 }));
 // FIRST init express' session, THEN passport's
 app.use(passport.initialize());
@@ -101,7 +101,7 @@ app.get('/logout', (req, res) => {
 app.get('/loginstatus', ensureAuthenticated, (req, res) => res.send(`You're logged in! <a href="/">Go back</a>`));
 
 // Gotanda syncer
-var db = setup('gotanda-db-test');
+var db = setup(__dirname + '/.data/gotanda-db');
 const SyncPayload = t.type({
   lastSharedId: t.string,
   newEvents: t.array(t.string),
