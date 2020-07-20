@@ -18,12 +18,12 @@
     "@types/node": "^14.0.23",
     "@types/passport": "^1.0.4",
     "@types/passport-github": "^1.1.5",
+    "@types/passport-http-bearer": "^1.0.35",
     "nodemon": "^2.0.4",
     "typescript": "^3.9.7"
   },
   "dependencies": {
     "body-parser": "^1.19.0",
-    "connect-ensure-login": "^0.1.1",
     "cookie-parser": "^1.4.5",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
@@ -34,6 +34,7 @@
     "level": "^6.0.1",
     "level-session-store": "^2.2.0",
     "passport": "^0.4.1",
-    "passport-github": "^1.1.0"
+    "passport-github": "^1.1.0",
+    "passport-http-bearer": "^1.0.1"
   }
 }
