@@ -11,7 +11,7 @@ export type Db = ReturnType<typeof levelup>;
 const db: Db = (require('level'))(__dirname + '/.data/gotanda-users-db', {valueEncoding: 'json'});
 
 const User = t.intersection([
-  t.type({gotandaId: t.string, apiTokens: t.array(t.type({token: t.string, name: t.string}))}),
+  t.type({gotandaId: t.string}), t.partial({apiTokens: t.array(t.type({token: t.string, name: t.string}))}),
   t.partial({github: t.UnknownRecord}), // we'll later allow sign up with others SSO, not just GitHub
 ]);
 export type IUser = t.TypeOf<typeof User>;
@@ -23,12 +23,19 @@ async function getKey(key: string): Promise<any|undefined> {
   } catch { return undefined; }
 }
 
-export async function getUser(key: string): Promise<IUser|undefined> {
+async function getUser(key: string): Promise<IUser|undefined> {
   const ret = await getKey(key);
   if (ret === undefined) { return undefined; }
   const decoded = User.decode(ret);
   if (isRight(decoded)) { return decoded.right; }
   console.error(`io-ts decode error for User object for key ${key}`);
+  return ret;
+}
+
+export async function getUserSafe(key: string): Promise<Omit<IUser, 'apiTokens'>|undefined> {
+  const ret = await getUser(key);
+  if (!ret) { return ret; }
+  delete ret['apiTokens'];
   return ret;
 }
 
@@ -97,6 +104,7 @@ export async function createApiToken(gotandaId: string, name: string): Promise<s
   if (!user) { return undefined; }
 
   // add this token
+  if (!user.apiTokens) { user.apiTokens = []; }
   user.apiTokens.push({token: newToken, name});
   // commit to db
   await db.batch().put(newToken, gotandaId).put(gotandaId, user).write();
@@ -105,7 +113,7 @@ export async function createApiToken(gotandaId: string, name: string): Promise<s
 
 export async function deleteApiToken(gotandaId: string, name: string): Promise<boolean> {
   const user = await getUser(gotandaId);
-  if (!user) { return false; }
+  if (!user || !user.apiTokens) { return false; }
 
   const batch = db.batch();
   {
@@ -128,7 +136,7 @@ export async function deleteApiToken(gotandaId: string, name: string): Promise<b
 
 export async function deleteAllApiTokens(gotandaId: string): Promise<boolean> {
   const user = await getUser(gotandaId);
-  if (!user) { return false; }
+  if (!user || !user.apiTokens) { return false; }
   const batch = db.batch();
   for (const token of user.apiTokens) { batch.del(token.token); }
   user.apiTokens = [];
@@ -139,6 +147,6 @@ export async function deleteAllApiTokens(gotandaId: string): Promise<boolean> {
 
 export async function getAllApiTokenNames(gotandaId: string): Promise<string[]> {
   const user = await getUser(gotandaId);
-  if (!user) { return []; }
+  if (!user || !user.apiTokens) { return []; }
   return user.apiTokens.map(o => o.name);
 }

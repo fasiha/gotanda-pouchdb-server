@@ -13,7 +13,7 @@ import {
   findApiToken,
   findOrCreateGithub,
   getAllApiTokenNames,
-  getUser,
+  getUserSafe,
   IUser
 } from './users';
 
@@ -42,7 +42,7 @@ passport.use('bearer', new BearerStrategy((token, cb) => findApiToken(token).the
 // Serialize an IUser into something we'll store in the user's session (very tiny)
 passport.serializeUser(function(user: IUser, cb) { cb(null, user.gotandaId); });
 // Take the data we stored in the session (`gotandaId`) and resurrect the full IUser object
-passport.deserializeUser(function(obj: string, cb) { getUser(obj).then(ret => cb(null, ret)); });
+passport.deserializeUser(function(obj: string, cb) { getUserSafe(obj).then(ret => cb(null, ret)); });
 
 app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to lock it. If true, all origins ok
 app.use(require('cookie-parser')());
