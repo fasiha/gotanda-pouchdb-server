@@ -60,7 +60,8 @@ app.use(passport.session());
 app.get('/', (req, res) => res.send(`
 <h1>Hi!</h1>
 ${req.user ? `<a href="/logout">Logout</a>` : `<a href="/auth/github">Login with GitHub</a>`}
-<a href="/personal">Personal (must be logged in)</a>
+<br>
+<a href="/loginstatus">Check your login status</a>
 <pre>${JSON.stringify(req.user, null, 3)}</pre>
 `));
 
@@ -97,8 +98,7 @@ app.get('/logout', (req, res) => {
   req.logout();
   res.redirect('/');
 });
-app.get('/personal', ensureAuthenticated, (req, res) => res.send(`You're logged in! <a href="/">Go back</a>`));
-app.get('/loginstatus', (req, res) => res.status(req.isAuthenticated() ? 200 : 401).end());
+app.get('/loginstatus', ensureAuthenticated, (req, res) => res.send(`You're logged in! <a href="/">Go back</a>`));
 
 // Gotanda syncer
 var db = setup('gotanda-db-test');
