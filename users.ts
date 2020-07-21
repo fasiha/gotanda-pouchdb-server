@@ -113,7 +113,8 @@ export async function createApiToken(gotandaId: string, name: string): Promise<s
 
 export async function deleteApiToken(gotandaId: string, name: string): Promise<boolean> {
   const user = await getUser(gotandaId);
-  if (!user || !user.apiTokens) { return false; }
+  if (!user) { return false; }
+  if (!user.apiTokens || user.apiTokens.length === 0) { return true; }
 
   const batch = db.batch();
   {
@@ -126,7 +127,7 @@ export async function deleteApiToken(gotandaId: string, name: string): Promise<b
       }
     }
     // if `name` isn't found, don't touch the database
-    if (newApiTokens.length === user.apiTokens.length) { return false; }
+    if (newApiTokens.length === user.apiTokens.length) { return true; }
     user.apiTokens = newApiTokens;
   }
 
@@ -136,7 +137,8 @@ export async function deleteApiToken(gotandaId: string, name: string): Promise<b
 
 export async function deleteAllApiTokens(gotandaId: string): Promise<boolean> {
   const user = await getUser(gotandaId);
-  if (!user || !user.apiTokens) { return false; }
+  if (!user) { return false; }
+  if (!user.apiTokens || user.apiTokens.length === 0) { return true }
   const batch = db.batch();
   for (const token of user.apiTokens) { batch.del(token.token); }
   user.apiTokens = [];
