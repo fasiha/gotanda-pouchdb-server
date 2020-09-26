@@ -4,14 +4,14 @@
     display: none;
   }
 </style>
-<p>Welcome to my cool webapp! It uses a Gotanda server to store your data!</p>
+<p>Welcome to my cool webapp! It stores <i>all</i> on your device, and uses a Gotanda server to sync it between devices!
+</p>
 <p id="login_out"></p>
 <div id="form" class="hidden">
   <label for="event">Text of event:</label>
   <input type="text" id="event" name="event" size="10">
   <button id="submit">Submit</button>
-  <button id="sync">Sync</button>
-  lastSharedId: <span id="lastSharedId"></span>
   <pre id="events"></pre>
 </div>
+<script src="//cdn.jsdelivr.net/npm/pouchdb@7.2.1/dist/pouchdb.min.js"></script>
 <script src="script.js"></script>

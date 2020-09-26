@@ -74,7 +74,7 @@ export async function findOrCreateGithub(profile: GitHubStrategy.Profile): Promi
     if (!(await getKey(attempt))) { newGotandaId = 'gotanda-' + attempt; }
   }
 
-  const github = {...profile};
+  const github: Partial<typeof profile> = {...profile};
   // I'm not comfortable storing this. I'd like to store even less (no name, avatar, etc.) but for now:
   delete github['_json'];
   delete github['_raw'];
