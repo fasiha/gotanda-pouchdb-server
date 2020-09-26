@@ -14,6 +14,7 @@ var changefeed, syncfeed;
 async function renderdb() {
   const allDocs = await db.allDocs({include_docs: true});
   document.querySelector('#events').innerHTML = allDocs.rows.map(row => JSON.stringify(row.doc || {})).join('\n');
+  console.log({allDocs});
 }
 
 (async function init() {
@@ -29,7 +30,7 @@ async function renderdb() {
       // one time sync done
       renderdb();
       syncfeed = db.sync(remotedb, {live: true, retry: true});
-      changefeed = remotedb.changes({since: 'now', live: true, include_docs: true}).on('change', change => {
+      changefeed = db.changes({since: 'now', live: true, include_docs: false}).on('change', change => {
         console.log('changed', change);
         renderdb();
       });

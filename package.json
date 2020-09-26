@@ -7,6 +7,7 @@
     "build": "tsc -p .",
     "serve": "node index.js",
     "serve-watch": "nodemon -w index.js index.js",
+    "client-serve": "cd any-client-app && npx servor . index.html 3001",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -22,6 +23,7 @@
     "@types/passport-http-bearer": "^1.0.35",
     "@types/pouchdb": "^6.4.0",
     "nodemon": "^2.0.4",
+    "servor": "^4.0.2",
     "typescript": "^3.9.7"
   },
   "dependencies": {
