@@ -24,26 +24,41 @@ const port = process.env.PORT || 3000;
 const BEARER_NAME = 'bearer';
 
 // Use `dotenv` to load some secrets in a typesafe way leveraging io-ts
-const secrets = t.type({
-  GITHUB_CLIENT_ID: t.string,
-  GITHUB_CLIENT_SECRET: t.string,
-  SESSION_SECRET: t.string,
-  URL: t.string,
-});
-const Env = t.type({parsed: secrets});
-const envDecode = Env.decode(require('dotenv').config());
-if (!isRight(envDecode)) { throw new Error('invalid env'); }
-const env = envDecode.right.parsed;
+const {env, githubWhitelist} = (() => {
+  const secrets = t.type({
+    GITHUB_CLIENT_ID: t.string,
+    GITHUB_CLIENT_SECRET: t.string,
+    SESSION_SECRET: t.string,
+    URL: t.string,
+    GITHUB_ID_WHITELIST: t.string,
+    GITHUB_USERNAME_WHITELIST: t.string,
+  });
+  const Env = t.type({parsed: secrets});
+  const envDecode = Env.decode(require('dotenv').config());
+  if (!isRight(envDecode)) {
+    console.error('invalid env');
+    process.exit(1);
+  }
+  const env = envDecode.right.parsed;
+
+  const stringToSet = (s: string) => new Set(s.split(',').map(s => s.trim()));
+  let githubWhitelist =
+      (env.GITHUB_ID_WHITELIST === '*' && env.GITHUB_USERNAME_WHITELIST === '*')
+          ? '*' as const
+          : {id: stringToSet(env.GITHUB_ID_WHITELIST), username: stringToSet(env.GITHUB_USERNAME_WHITELIST)};
+  return {env, githubWhitelist};
+})();
 
 // Tell Passport how we want to use GitHub auth
-passport.use(new GitHubStrategy(
-    {
+passport.use(
+    new GitHubStrategy({
       clientID: env.GITHUB_CLIENT_ID,
       clientSecret: env.GITHUB_CLIENT_SECRET,
       callbackURL: `${env.URL}/auth/github/callback`,
     },
-    // This function converts the GitHub profile into our app's object representing the user (IUser)
-    (accessToken, refreshToken, profile, cb) => findOrCreateGithub(profile).then(ret => cb(null, ret))));
+                       // This function converts the GitHub profile into our app's object representing the user (IUser)
+                       (accessToken, refreshToken, profile, cb) =>
+                           findOrCreateGithub(profile, githubWhitelist).then(ret => cb(null, ret))));
 // Tell Passport we want to use Bearer (API token) auth, and *name* this strategy: we'll use this name below
 passport.use(BEARER_NAME,
              new BearerStrategy((token, cb) => findApiToken(token).then(ret => cb(null, ret ? ret : false))));
