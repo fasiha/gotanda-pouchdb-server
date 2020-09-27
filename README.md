@@ -51,7 +51,7 @@ var remotedb = new PouchDB(`${server}/db/${appName}`, {
 // Sync the two
 var syncfeed = db.sync(remotedb, {live: true, retry: true});
 ```
-That's it, your local PouchDB will sync with Gotanda, go ahead and add things like conflict resolution and change feeds, etc. As you can see, there's almost nothing Gotanda-specific about your clients. As far as your app knows, it's just talking to a CouchDB-compliant endpoint that 
+With this, your local PouchDB will sync with Gotanda, so go ahead and add things like conflict resolution and change feeds, etc. As you can see, there's almost nothing Gotanda-specific about your clients. As far as your app knows, it's just talking to a CouchDB-compliant endpoint that 
 - follows a specific URL scheme: `${server}/db/${appName}`, and
 - has authentication/authorization done by Gotanda (hence setting [`credentials`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Syntax) to `include`).
 
