@@ -72,7 +72,7 @@ app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to 
 app.use(require('cookie-parser')());
 app.use(express.json({limit: '100mb'}));
 app.use(require('express-session')({
-  cookie: app.get('env') === 'production' ? {secure: true, sameSite: 'none'} : {secure: false, sameSite: 'lax'},
+  cookie: process.env.NODE_ENV === 'development' ? {secure: false, sameSite: 'lax'} : {secure: true, sameSite: 'none'},
   secret: env.SESSION_SECRET,
   resave: true,
   saveUninitialized: true,
