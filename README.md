@@ -11,19 +11,22 @@ This repo, Gotanda PouchDB, is intended to service apps that use [PouchDB](https
 3. **Bonus** A user can use the *same* Gotanda server with *multiple* different apps—each app just has to use a different identifier, and Gotanda will store each (user, app) pair's data in a separate PouchDB database.
 
 ## Set up a Gotanda server
-1. Once you've identified where you'll host it, [register](https://github.com/settings/applications/new) your app with GitHub.
+1. Once you've identified where you'll host it, [register](https://github.com/settings/applications/new) Gotanda with GitHub. The "Homepage URL" is flexible but the "Authorization callback URL" is very important! It needs to be at Gotanda's future URL plus `/auth/github/callback`:
+    - you can always use `http://127.0.0.1:3000/auth/github/callback` for local testing.
+    - For a deployed app, it might be something like `https://my-awesome-app.glitch.me/auth/github/callback`.
 2. Clone this repo: `git clone https://github.com/fasiha/gotanda-pouchdb-server`
 3. Change directory: `cd gotanda-pouchdb-server`
 4. Create a file called `.env` and fill in the following:
-```
-SESSION_SECRET=
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-URL=
-```
-  - `SESSION_SECRET` is a long random string used by the Express webserver to [secure](https://martinfowler.com/articles/session-secret.html) cookies. In a pinch, run the following in a Node session and use its output: `require('crypto').randomBytes(24).toString('base64')`
-  - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are given to you by GitHub.
-  - `URL` this is where your app will be hosted, e.g., `https://my-awesome-app.glitch.me` or `http://127.0.0.1:34831`.
+    ```
+    SESSION_SECRET=
+    GITHUB_CLIENT_ID=
+    GITHUB_CLIENT_SECRET=
+    URL=
+    ```
+    - `SESSION_SECRET` is a long random string used by the Express webserver to [secure](https://martinfowler.com/articles/session-secret.html) cookies. In a pinch, run the following in a Node session and use its output: `require('crypto').randomBytes(24).toString('base64')`
+    - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are given to you by GitHub.
+    - `URL` this is where your app will be hosted, e.g., `https://my-awesome-app.glitch.me` or `http://127.0.0.1:3000`.
+
 5. Install dependencies: `npm install`
 6. Build the TypeScript code to JavaScript: `npm run build`
 7. Start the server: `npm run serve`
