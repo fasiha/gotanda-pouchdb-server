@@ -8,7 +8,11 @@
     "serve": "node index.js",
     "serve-watch": "nodemon -w index.js index.js",
     "client-serve": "cd any-client-app && npx servor . index.html 3001",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npm run serve"
+  },
+  "engines": {
+    "node": ">=12.0.0"
   },
   "keywords": [],
   "author": "",
