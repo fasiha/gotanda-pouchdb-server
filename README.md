@@ -34,6 +34,8 @@ This repo, Gotanda PouchDB, is intended to service apps that use [PouchDB](https
 6. Build the TypeScript code to JavaScript: `npm run build`
 7. Start the server: `npm run serve`
 
+**Nota bene** Add `NODE_ENV=development` in `.env` if you're developing locally on your machine to ensure cookies work correctly.
+
 ## Set up your your client app
 This repo contains an extremely simple [client app](https://github.com/fasiha/gotanda-pouchdb-server/tree/master/any-client-app) that uses PouchDB to store notes and syncs with Gotanda in less than 50 lines of JavaScript. Be sure to consult the amazing PouchDB [guides](https://pouchdb.com/guides/) and [API docs](https://pouchdb.com/api.html) but in a nutshell, here's what the sample app does, and what your app likely will do:
 ```js
