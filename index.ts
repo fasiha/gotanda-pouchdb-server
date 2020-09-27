@@ -70,8 +70,9 @@ passport.deserializeUser(function(obj: string, cb) { getUserSafe(obj).then(ret =
 
 app.use(require('cors')({origin: true, credentials: true})); // Set 'origin' to lock it. If true, all origins ok
 app.use(require('cookie-parser')());
-app.use(express.json());
+app.use(express.json({limit: '100mb'}));
 app.use(require('express-session')({
+  cookie: app.get('env') === 'production' ? {sameSite: 'lax'} : {secure: false, sameSite: 'lax'},
   secret: env.SESSION_SECRET,
   resave: true,
   saveUninitialized: true,
@@ -163,3 +164,10 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
 
 // All done
 app.listen(port, () => console.log(`App at 127.0.0.1:${port}`));
+
+/*
+const logRequest = (req, res, next) => {
+  console.log(Object.entries(req).filter(([_, v]) => typeof v === 'string').map(arr => arr.join(' => ')).join('\n* '));
+  next();
+}
+*/
