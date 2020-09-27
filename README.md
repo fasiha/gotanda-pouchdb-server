@@ -100,3 +100,10 @@ This is the endpoint you should connect to with PouchDB. Gotanda internally rewr
 
 ### `GET /logout`
 Logs you out of Gotanda in the browser.
+
+## Directions
+Right now this repo is intended to be used as a stand-alone executable. Get in touch if you need this to be an Express application that you can mount on one endpoint inside your larger app.
+
+A previous incarnation of this, without PouchDB and a much simpler approach, is [Gotanda Events](https://github.com/fasiha/gotanda-events-server/).
+
+We might have future iterations and improvements on Gotanda. PouchDB appears to be abandoned, and there might be a [flaw](https://github.com/pouchdb/pouchdb-server/issues/415) in its security model (which is why Gotanda handles the auth—the db you get is yours so you can do whatever you want inside it), but PouchDB remains absolutely lovely so if you do try Gotanda PouchDB, feel free to get in touch with any [issues](https://github.com/fasiha/gotanda-pouchdb-server/issues).
