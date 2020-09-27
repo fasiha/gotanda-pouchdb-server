@@ -158,12 +158,6 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
   // The db name will be `${userId}-${app}`: hopefully this facilitates user data export.
   req.url = `/${userId}-${app}${req.url}`;
 
-  console.log(Object.entries(req)
-                  .filter(([_, v]) => typeof v === 'string')
-                  .concat([['app', app], ['userId', userId]])
-                  .map(arr => arr.join(' => '))
-                  .join('\n- '));
-
   db(req, res);
 });
 
