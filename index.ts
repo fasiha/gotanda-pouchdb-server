@@ -20,7 +20,7 @@ import {
 mkdirpSync(__dirname + '/.data');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 const BEARER_NAME = 'bearer';
 
 // Use `dotenv` to load some secrets in a typesafe way leveraging io-ts
@@ -28,8 +28,7 @@ const secrets = t.type({
   GITHUB_CLIENT_ID: t.string,
   GITHUB_CLIENT_SECRET: t.string,
   SESSION_SECRET: t.string,
-  HOSTNAME: t.string,
-  PROTOCOL: t.string,
+  URL: t.string,
 });
 const Env = t.type({parsed: secrets});
 const envDecode = Env.decode(require('dotenv').config());
@@ -41,7 +40,7 @@ passport.use(new GitHubStrategy(
     {
       clientID: env.GITHUB_CLIENT_ID,
       clientSecret: env.GITHUB_CLIENT_SECRET,
-      callbackURL: `${env.PROTOCOL}://${env.HOSTNAME}:${port}/auth/github/callback`,
+      callbackURL: `${env.URL}/auth/github/callback`,
     },
     // This function converts the GitHub profile into our app's object representing the user (IUser)
     (accessToken, refreshToken, profile, cb) => findOrCreateGithub(profile).then(ret => cb(null, ret))));
@@ -67,13 +66,26 @@ app.use(require('express-session')({
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.get('/', (req, res) => res.send(`
-<h1>Hi!</h1>
-${req.user ? `<a href="/logout">Logout</a>` : `<a href="/auth/github">Login with GitHub</a>`}
-<br>
-<a href="/loginstatus">Check your login status</a>
+app.get('/', async (req, res) => {
+  if (!req.user) {
+    res.send(`<title>Gotanda</title>
+<h1>Welcome to Gotanda</h1>
+<a href="/auth/github">Login with GitHub</a>`);
+    return;
+  }
+  const names = await getAllApiTokenNames((req.user as IUser).gotandaId);
+  const ret = `<title>Gotanda</title>
+<h1>Welcome to Gotanda</h1>
+<p>You're logged in! <a href="/logout">Logout</a>
+<p>
+${names.length ? `Your tokens:<ul>${names.map(name => '<li>' + name)}</ul>` : 'You have created no tokens.'}
+<p>
+Here's everything Gotanda has saved about you:
 <pre>${JSON.stringify(req.user, null, 3)}</pre>
-`));
+<p>
+`;
+  res.send(ret);
+});
 
 // The name "bearer" here matches the name we gave the strategy above. See
 // https://dsackerman.com/passportjs-using-multiple-strategies-on-the-same-endpoint/
@@ -118,7 +130,7 @@ import PouchDB from 'pouchdb';
 const pouchPrefix = __dirname + '/.data/pouches';
 mkdirpSync(pouchPrefix);
 const configPouchDB = PouchDB.defaults({prefix: pouchPrefix});
-const db = require('express-pouchdb')(configPouchDB);
+const db = require('express-pouchdb')(configPouchDB, {mode: 'minimumForPouchDB'});
 
 const dbPrefix = '/db';
 app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
@@ -128,10 +140,8 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
     res.status(400).json('bad app');
     return;
   }
-  // Express-PouchDB is evil! It looks at originalUrl for some reason.
-  // The db name will be `${userId}-${app}` (`baseUrl` is `/db/${app}`): hopefully this facilitates user data
-  // export.
-  req.originalUrl = req.originalUrl.replace(req.baseUrl, `${dbPrefix}/${userId}-${app}`);
+  // The db name will be `${userId}-${app}`: hopefully this facilitates user data export.
+  req.url = `/${userId}-${app}${req.url}`;
 
   console.log(Object.entries(req)
                   .filter(([_, v]) => typeof v === 'string')
@@ -143,4 +153,4 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
 });
 
 // All done
-app.listen(port, () => console.log(`App at ${env.PROTOCOL}://${env.HOSTNAME}:${port}`));
+app.listen(port, () => console.log(`App at 127.0.0.1:${port}`));

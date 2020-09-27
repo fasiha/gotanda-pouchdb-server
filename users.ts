@@ -89,10 +89,13 @@ export async function findApiToken(token: string): Promise<IUser|undefined> {
   if (hit) {
     const existing = await getUser(hit);
     if (existing && existing.apiTokens && existing.apiTokens.find(o => o.token === token)) { return existing; }
-    console.error(`API token ${token} points to user either non-existent or who deleted this token. Maybe delete it?`);
+    // token points to user either non-existent or who deleted this token but wasn't cleaned up. Delete it.
+    await deleteOrphanApiToken(token);
   }
   return undefined;
 }
+
+async function deleteOrphanApiToken(token: string): Promise<boolean> { return db.del(token).then(() => true); }
 
 export async function createApiToken(gotandaId: string, name: string): Promise<string|undefined> {
   const newToken = 'token-' + await base64urlRandom(21);

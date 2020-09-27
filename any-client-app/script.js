@@ -37,7 +37,7 @@ async function renderdb() {
     });
   } else {
     // We're not logged in on initial page load
-    document.querySelector("#login_out").innerHTML = 'Log in';
+    document.querySelector("#login_out").innerHTML = '<a href="http://127.0.0.1:3000">Log in</a>';
     document.querySelector('#form').classList.add('hidden');
   }
 
