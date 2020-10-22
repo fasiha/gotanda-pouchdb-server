@@ -144,7 +144,7 @@ app.get('/loginstatus', ensureAuthenticated, (req, res) => res.send(`You're logg
 // PouchDB-Server
 import PouchDB from 'pouchdb';
 
-const pouchPrefix = __dirname + '/.data/pouches';
+const pouchPrefix = __dirname + '/.data/pouches/'; // trailing / required for this to be a subdirectory!
 mkdirpSync(pouchPrefix);
 const configPouchDB = PouchDB.defaults({prefix: pouchPrefix});
 const db = require('express-pouchdb')(configPouchDB, {mode: 'minimumForPouchDB'});
@@ -161,6 +161,13 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
   req.url = `/${userId}-${app}${req.url}`;
 
   db(req, res);
+});
+
+// this just returns innocuous (I think!) PouchDB/CouchDB data, nothing about users or databases. PouchDB shows an ugly
+// 404 in browser without this. I want to allow only a minimal amount of access: JUST /db (or /db/) and GET.
+app.get('/db/?$', ensureAuthenticated, (req, res) => {
+  req.url = `/`;
+  db(req, res)
 });
 
 // All done
