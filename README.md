@@ -100,16 +100,22 @@ Deletes all tokens.
 #### `DELETE /auth/token/:name`
 Deletes the token named `:name`.
 
-### `* /db/:app`
-This is the endpoint you should connect to with PouchDB. Gotanda internally rewrites the URL before giving it to PouchDB-Server so that Gotanda stores this app's data in a single database isolated from other users and other apps.
-
 ### `GET /logout`
 Logs you out of Gotanda in the browser.
 
+### `* /db/:app`
+This is the endpoint you should connect to with PouchDB. Gotanda internally rewrites the URL before giving it to PouchDB-Server so that Gotanda stores this app's data in a single database isolated from other users and other apps.
+
+### `GET /me/apps`
+Gives you (in JSON) an array of app names synced to this Gotanda server. This list matches the "app" part of `/db/:app` endpoint above.
+
+### `{GET,DELETE} /me/app/:app`
+`GET` with the same `:app` app name as `/db/:app` above will return JSON of *all* data that this app has synced. Hitting this from the browser will give you a nicely-named JSON file.
+
+`DELETE` will delete the PouchDB database backing this `:app`. Beware.
+
 ## Directions
 I anticipate Gotanda PouchDB to be set up by one person and used by their circle of relatives, friends, students, etc., so I've paid relatively little attention to malicious users. Nonetheless, nothing but your bravery stops you from setting both allowlists to `*` to allow unlimited signups.
-
-Todo: data takeout, where a user can download a JSON file containing all their databases, presumably including full PouchDB history.
 
 Right now this repo is intended to be used as a stand-alone executable. Get in touch if you need this to be an Express application that you can mount on one endpoint inside your larger app.
 

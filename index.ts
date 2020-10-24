@@ -1,5 +1,6 @@
 import express, {RequestHandler} from 'express';
 import {isRight} from 'fp-ts/lib/Either';
+import {lstat, readdir} from 'fs/promises';
 import * as t from 'io-ts';
 import {sync as mkdirpSync} from 'mkdirp';
 import passport from 'passport';
@@ -145,9 +146,22 @@ app.get('/loginstatus', ensureAuthenticated, (req, res) => res.send(`You're logg
 import PouchDB from 'pouchdb';
 
 const pouchPrefix = __dirname + '/.data/pouches/'; // trailing / required for this to be a subdirectory!
+const USER_APP_SEP = '.'; // since Gotanda userIDs contains [0-9a-zA-Z-_], this is none of these
+
 mkdirpSync(pouchPrefix);
-const configPouchDB = PouchDB.defaults({prefix: pouchPrefix});
-const db = require('express-pouchdb')(configPouchDB, {mode: 'minimumForPouchDB'});
+const PrefixedPouchDB = PouchDB.defaults({prefix: pouchPrefix});
+const db = require('express-pouchdb')(PrefixedPouchDB, {mode: 'minimumForPouchDB'});
+
+async function allSubdbs(user: IUser): Promise<string[]> {
+  const paths = (await readdir(pouchPrefix)).filter(s => s.startsWith(user.gotandaId + USER_APP_SEP));
+  const stats = await Promise.all(paths.map(s => lstat(pouchPrefix + s)));
+  return stats.flatMap((s, i) => s.isDirectory() ? paths[i] : []);
+}
+
+async function dbTakeout(dbname: string) {
+  const subdb = new PrefixedPouchDB(dbname);
+  return (await subdb.allDocs({include_docs: true})).rows.flatMap(o => o.doc ? o.doc : []);
+}
 
 const dbPrefix = '/db';
 app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
@@ -157,10 +171,58 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
     res.status(400).json('bad app');
     return;
   }
-  // The db name will be `${userId}-${app}`: hopefully this facilitates user data export.
-  req.url = `/${userId}-${app}${req.url}`;
+  // The db name will be `${userId}.${app}`: hopefully this facilitates user data export.
+  req.url = `/${userId}${USER_APP_SEP}${app}${req.url}`;
 
   db(req, res);
+});
+
+app.get(`/me/apps`, ensureAuthenticated, async (req, res) => {
+  try {
+    if (req.user && (req.user as IUser).gotandaId) {
+      res.json((await allSubdbs(req.user as IUser)).map(s => s.split(USER_APP_SEP).slice(1).join(USER_APP_SEP)))
+      return;
+    }
+  } catch (e) { console.error(e); }
+  res.status(400).json('bad user');
+});
+
+app.get(`/me/app/:app`, ensureAuthenticated, require('compression')(), async (req, res) => {
+  try {
+    const {app} = req.params;
+    if (req.user && (req.user as IUser).gotandaId && !app.includes('/')) {
+      const user = req.user as IUser;
+      const dbname = user.gotandaId + USER_APP_SEP + app;
+      const dbpath = pouchPrefix + dbname;
+      if ((await lstat(dbpath)).isDirectory()) {
+        const data = await dbTakeout(dbname);
+        res.set('Content-Disposition', `attachment; filename="${dbpath}-${new Date().toISOString()}.json"`);
+        res.set('Content-Type', 'application/json');
+        res.send(JSON.stringify(data));
+        return;
+      }
+    }
+  } catch (e) { console.error(e); }
+  res.status(400).json('bad user or app');
+});
+app.delete(`/me/app/:app`, ensureAuthenticated, async (req, res) => {
+  try {
+    // Same validation logic as above GET
+    const {app} = req.params;
+    if (req.user && (req.user as IUser).gotandaId && !app.includes('/')) {
+      const user = req.user as IUser;
+      const dbname = user.gotandaId + USER_APP_SEP + app;
+      const dbpath = pouchPrefix + dbname;
+      if ((await lstat(dbpath)).isDirectory()) {
+        // This part is different from GET though
+        const subdb = new PrefixedPouchDB(dbname);
+        await subdb.destroy();
+        res.json(true);
+        return;
+      }
+    }
+  } catch (e) { console.error(e); }
+  res.status(400).json('bad user or app');
 });
 
 // this just returns innocuous (I think!) PouchDB/CouchDB data, nothing about users or databases. PouchDB shows an ugly
