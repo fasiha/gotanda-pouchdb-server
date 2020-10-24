@@ -25,14 +25,14 @@ const port = process.env.PORT || 3000;
 const BEARER_NAME = 'bearer';
 
 // Use `dotenv` to load some secrets in a typesafe way leveraging io-ts
-const {env, githubWhitelist} = (() => {
+const {env, githubAllowlist} = (() => {
   const secrets = t.type({
     GITHUB_CLIENT_ID: t.string,
     GITHUB_CLIENT_SECRET: t.string,
     SESSION_SECRET: t.string,
     URL: t.string,
-    GITHUB_ID_WHITELIST: t.string,
-    GITHUB_USERNAME_WHITELIST: t.string,
+    GITHUB_ID_ALLOWLIST: t.string,
+    GITHUB_USERNAME_ALLOWLIST: t.string,
   });
   const Env = t.type({parsed: secrets});
   const envDecode = Env.decode(require('dotenv').config());
@@ -43,11 +43,11 @@ const {env, githubWhitelist} = (() => {
   const env = envDecode.right.parsed;
 
   const stringToSet = (s: string) => new Set(s.split(',').map(s => s.trim()));
-  let githubWhitelist =
-      (env.GITHUB_ID_WHITELIST === '*' && env.GITHUB_USERNAME_WHITELIST === '*')
+  let githubAllowlist =
+      (env.GITHUB_ID_ALLOWLIST === '*' && env.GITHUB_USERNAME_ALLOWLIST === '*')
           ? '*' as const
-          : {id: stringToSet(env.GITHUB_ID_WHITELIST), username: stringToSet(env.GITHUB_USERNAME_WHITELIST)};
-  return {env, githubWhitelist};
+          : {id: stringToSet(env.GITHUB_ID_ALLOWLIST), username: stringToSet(env.GITHUB_USERNAME_ALLOWLIST)};
+  return {env, githubAllowlist};
 })();
 
 // Tell Passport how we want to use GitHub auth
@@ -59,7 +59,7 @@ passport.use(
     },
                        // This function converts the GitHub profile into our app's object representing the user (IUser)
                        (accessToken, refreshToken, profile, cb) =>
-                           findOrCreateGithub(profile, githubWhitelist).then(ret => cb(null, ret))));
+                           findOrCreateGithub(profile, githubAllowlist).then(ret => cb(null, ret))));
 // Tell Passport we want to use Bearer (API token) auth, and *name* this strategy: we'll use this name below
 passport.use(BEARER_NAME,
              new BearerStrategy((token, cb) => findApiToken(token).then(ret => cb(null, ret ? ret : false))));

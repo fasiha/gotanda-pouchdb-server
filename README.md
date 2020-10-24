@@ -22,13 +22,13 @@ This repo, Gotanda PouchDB, is intended to service apps that use [PouchDB](https
     SESSION_SECRET=
     GITHUB_CLIENT_ID=
     GITHUB_CLIENT_SECRET=
-    GITHUB_USERNAME_WHITELIST=
-    GITHUB_ID_WHITELIST=
+    GITHUB_USERNAME_ALLOWLIST=
+    GITHUB_ID_ALLOWLIST=
     ```
     - `URL`, where your app will be hosted, e.g., `https://my-awesome-app.glitch.me` or `http://127.0.0.1:3000` (don't put a trailing `/`, it breaks things).
     - `SESSION_SECRET` should a long random string used by the Express webserver to [secure](https://martinfowler.com/articles/session-secret.html) cookies. In a pinch, run the following in a Node session and use its output: `require('crypto').randomBytes(24).toString('base64')`
     - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are given to you by GitHub when you [register](https://github.com/settings/applications/new) your instance of Gotanda.
-    - But `GITHUB_USERNAME_WHITELIST` and `GITHUB_ID_WHITELIST` are yours: these are comma-separated lists of GitHub usernames and IDs respectively (see here for how to convert [username to id](https://stackoverflow.com/q/17308954)) that are allowed to use Gotanda. If *both* of these are `*`, then all GitHub users can use Gotanda. Otherwise, the *union* of usernames and IDs is allowed, so you can whitelist a given user's GitHub ID *or* their GitHub username (or both). Because [you can change your GitHub username](https://help.github.com/articles/what-happens-when-i-change-my-username/), but also because it's typically easier to specify username, we allow you to give either.
+    - But `GITHUB_USERNAME_ALLOWLIST` and `GITHUB_ID_ALLOWLIST` are yours: these are comma-separated lists of GitHub usernames and IDs respectively (see here for how to convert [username to id](https://stackoverflow.com/q/17308954)) that are allowed to use Gotanda. If *both* of these are `*`, then all GitHub users can use Gotanda. Otherwise, the *union* of usernames and IDs is allowed, so you can permission a given user's GitHub ID *or* their GitHub username (or both). Because [you can change your GitHub username](https://help.github.com/articles/what-happens-when-i-change-my-username/), but also because it's typically easier to specify username, we allow you to give either.
 
 5. Install dependencies: `npm install`
 6. Build the TypeScript code to JavaScript: `npm run build`
@@ -107,7 +107,7 @@ This is the endpoint you should connect to with PouchDB. Gotanda internally rewr
 Logs you out of Gotanda in the browser.
 
 ## Directions
-I anticipate Gotanda PouchDB to be set up by one person and used by their circle of relatives, friends, students, etc., so I've paid relatively little attention to malicious users. Nonetheless, nothing but your bravery stops you from setting both whitelists to `*` to allow unlimited signups.
+I anticipate Gotanda PouchDB to be set up by one person and used by their circle of relatives, friends, students, etc., so I've paid relatively little attention to malicious users. Nonetheless, nothing but your bravery stops you from setting both allowlists to `*` to allow unlimited signups.
 
 Todo: data takeout, where a user can download a JSON file containing all their databases, presumably including full PouchDB history.
 
