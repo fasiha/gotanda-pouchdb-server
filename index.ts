@@ -8,9 +8,13 @@ import GitHubStrategy from 'passport-github';
 import {Strategy as BearerStrategy} from 'passport-http-bearer';
 
 import {
+  addOnlookerApp,
   createApiToken,
   deleteAllApiTokens,
   deleteApiToken,
+  delOnlooker,
+  delOnlookerApp,
+  delOnlookers,
   findApiToken,
   findOrCreateGithub,
   getAllApiTokenNames,
@@ -163,8 +167,7 @@ async function dbTakeout(dbname: string) {
   return (await subdb.allDocs({include_docs: true})).rows.flatMap(o => o.doc ? o.doc : []);
 }
 
-const dbPrefix = '/db';
-app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
+app.use(`/db/:app`, ensureAuthenticated, (req, res) => {
   const userId = req.user && (req.user as IUser).gotandaId;
   const {app} = req.params;
   if (!(userId && app && !app.includes('/'))) {
@@ -175,6 +178,98 @@ app.use(`${dbPrefix}/:app`, ensureAuthenticated, (req, res) => {
   req.url = `/${userId}${USER_APP_SEP}${app}${req.url}`;
 
   db(req, res);
+});
+
+// User trying to read *another* user's database
+app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
+  const user = req.user;
+  const userId = user && (req.user as IUser).gotandaId;
+  const {ownerId, app} = req.params;
+  if (!(userId && app && !app.includes('/') && ownerId && !ownerId.includes('/'))) {
+    res.status(400).json('bad request');
+    return;
+  }
+  const owner = await getUserSafe(ownerId);
+  if (!owner?.onlookers?.[userId]?.[app]) {
+    res.status(401).json('bad owner');
+    return;
+  }
+
+  if (req.method === 'GET' || req.url.startsWith('/_changes') || req.url.startsWith('/_all_docs') ||
+      req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
+    // this is read-only (GET) or it's a potential-write (POST, PUT, etc.) to a safe PouchDB/CouchDB endpoint, e.g.,
+    // clients can POST to `_all_docs` to avoid sending a huge query string:
+    // https://docs.couchdb.org/en/stable/api/database/bulk-api.html#post--db-_all_docs
+
+    // As when the user is requesting their own database (above): rewrite the URL and send to PouchDB-Server
+    req.url = `/${owner.gotandaId}${USER_APP_SEP}${app}${req.url}`;
+    return db(req, res);
+  }
+  return res.status(401);
+});
+
+// User wants to designate another user as an onlooker for the given app
+app.put('/me/onlooker/:onlookerId/app/:app', ensureAuthenticated, async (req, res) => {
+  const user = req.user;
+  const userId = user && (req.user as IUser).gotandaId;
+  const {onlookerId, app} = req.params;
+  if (!(userId && app && !app.includes('/') && onlookerId && !onlookerId.includes('/'))) {
+    res.status(400).json('bad request');
+    return;
+  }
+  const onlooker = await getUserSafe(onlookerId);
+  if (!onlooker) {
+    res.status(400).json('bad onlooker');
+    return;
+  }
+  res.json(await addOnlookerApp(user as IUser, onlookerId, app));
+});
+
+// User wants to *revoke* an onlooker's access to one of their apps
+app.delete('/me/onlooker/:onlookerId/app/:app', ensureAuthenticated, async (req, res) => {
+  // Same business logic as GET above
+  const user = req.user;
+  const userId = user && (req.user as IUser).gotandaId;
+  const {onlookerId, app} = req.params;
+  if (!(userId && app && !app.includes('/') && onlookerId && !onlookerId.includes('/'))) {
+    res.status(400).json('bad request');
+    return;
+  }
+  const onlooker = await getUserSafe(onlookerId);
+  if (!onlooker) {
+    res.status(400).json('bad onlooker');
+    return;
+  }
+  res.json(await delOnlookerApp(user as IUser, onlookerId, app));
+});
+
+// Drama: user wants to revoke an onlooker's access to ALL their apps
+app.delete('/me/onlooker/:onlookerId', ensureAuthenticated, async (req, res) => {
+  // Same business logic as GET above
+  const user = req.user;
+  const userId = user && (req.user as IUser).gotandaId;
+  const {onlookerId} = req.params;
+  if (!(userId && onlookerId && !onlookerId.includes('/'))) {
+    res.status(400).json('bad request');
+    return;
+  }
+  const onlooker = await getUserSafe(onlookerId);
+  if (!onlooker) {
+    res.status(400).json('bad onlooker');
+    return;
+  }
+  res.json(await delOnlooker(user as IUser, onlookerId));
+});
+
+// Major drama: user wants to revoke ALL onlookers' access to ALL their apps
+app.delete('/me/onlookers', ensureAuthenticated, async (req, res) => {
+  const user = req.user;
+  const userId = user && (req.user as IUser).gotandaId;
+  if (!userId) {
+    res.status(400).json('bad request');
+    return;
+  }
+  res.json(await delOnlookers(user as IUser));
 });
 
 app.get(`/me/apps`, ensureAuthenticated, async (req, res) => {

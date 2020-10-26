@@ -10,9 +10,20 @@ const randomBytes = promisify(randomBytesOrig);
 export type Db = ReturnType<typeof levelup>;
 const db: Db = (require('level'))(__dirname + '/.data/gotanda-users-db', {valueEncoding: 'json'});
 
+const Onlookers = t.record(t.string, t.record(t.string, t.boolean)); // other user -> my app -> true/false (read-only)
+const Onlookees =
+    t.record(t.string, t.record(t.string, t.boolean)); // other user -> their app -> true/false (read-only)
 const User = t.intersection([
-  t.type({gotandaId: t.string}), t.partial({apiTokens: t.array(t.type({token: t.string, name: t.string}))}),
-  t.partial({github: t.UnknownRecord}), // we'll later allow sign up with others SSO, not just GitHub
+  t.type({
+    gotandaId: t.string,
+    apiTokens: t.array(t.type({token: t.string, name: t.string})),
+  }),
+  t.partial({
+    onlookers: Onlookers,
+    onlookees: Onlookees,
+  }),
+  // we'll later allow sign up with others SSO, not just GitHub
+  t.partial({github: t.UnknownRecord}),
 ]);
 export type IUser = t.TypeOf<typeof User>;
 
@@ -23,20 +34,44 @@ async function getKey(key: string): Promise<any|undefined> {
   } catch { return undefined; }
 }
 
-async function getUser(key: string): Promise<IUser|undefined> {
+// DO NOT EXPORT THIS, use getUserSafe (below)!
+/**
+ * Convert a user key in the users database to the User object, if availab.e
+ *
+ * N.B., GitHub keys `github-<ID>` use the numeric GitHub ID, *not* usernames (since usernames can change)
+ *
+ * @param key `gotanda-<ID>` OR `github-<ID>` OR `token-<ID>`, etc., anything we use to find users
+ * @param allowNonGotandaKey allow `key` to be non-Gotanda-ID (only used to prevent infinite loop searches)
+ */
+async function getUser(key: string, allowNonGotandaKey = true): Promise<IUser|undefined> {
   const ret = await getKey(key);
   if (ret === undefined) { return undefined; }
   const decoded = User.decode(ret);
   if (isRight(decoded)) { return decoded.right; }
+  // if `key` is a Gotanda ID, it's value `ret` will be a `User`.
+
+  // did we pass in a github or token as `key`?
+  if (allowNonGotandaKey) {
+    if (typeof ret === 'string') {
+      // `key` has stringy value, rather than object, which is the case for GitHub or tokens. Use that value as a db key
+      // and see if we find a user there.
+      const existing = await getUser(ret, false);
+      const decoded = User.decode(existing);
+      if (isRight(decoded)) { return decoded.right; }
+    }
+  }
   console.error(`io-ts decode error for User object for key ${key}`);
-  return ret;
+  return undefined;
 }
 
-export async function getUserSafe(key: string): Promise<Omit<IUser, 'apiTokens'>|undefined> {
+/**
+ * Safe version of `getUser`; "safe" in that API tokens are explicitly forbidden from appearing in the output
+ * @param key same as `getUser`
+ */
+export async function getUserSafe(key: string): Promise<(Omit<IUser, 'apiTokens'>& {apiTokens: undefined})|undefined> {
   const ret = await getUser(key);
   if (!ret) { return ret; }
-  delete ret['apiTokens'];
-  return ret;
+  return {...ret, apiTokens: undefined};
 }
 
 /*
@@ -160,3 +195,76 @@ export async function getAllApiTokenNames(gotandaId: string): Promise<string[]> 
   if (!user || !user.apiTokens) { return []; }
   return user.apiTokens.map(o => o.name);
 }
+
+function convertUserOrId(userOrId: string|IUser) { return typeof userOrId === 'string' ? getUser(userOrId) : userOrId; }
+export async function addOnlookerApp(userOrId: string|IUser, onlookerOrId: string|IUser, app: string) {
+  const [user, onlooker] = await Promise.all([convertUserOrId(userOrId), convertUserOrId(onlookerOrId)])
+  if (!user || !onlooker) { return false; } // false tells the caller their intention wasn't satisfied
+
+  const batch = db.batch();
+  {
+    // this will mutate the input even for the caller (unless `onlookers` isn't in `user`), but that's fine
+    const onlookers = user.onlookers || {};
+    if (!(onlooker.gotandaId in onlookers)) { onlookers[onlooker.gotandaId] = {}; }
+    onlookers[onlooker.gotandaId][app] = true;
+    const doc: IUser = {...user, onlookers};
+    batch.put(doc.gotandaId, doc);
+  }
+  {
+    // same caveat as above
+    const onlookees = user.onlookers || {};
+    if (!(user.gotandaId in onlookees)) { onlookees[user.gotandaId] = {}; }
+    onlookees[user.gotandaId][app] = true;
+    const doc: IUser = {...onlooker, onlookees};
+    batch.put(doc.gotandaId, doc);
+  }
+  await batch.write();
+  return true;
+}
+
+export async function delOnlookerApp(userOrId: string|IUser, onlookerOrId: string|IUser, app: string) {
+  const [user, onlooker] = await Promise.all([convertUserOrId(userOrId), convertUserOrId(onlookerOrId)])
+  if (!user || !onlooker) { return false; } // false tells the caller their intention wasn't satisfied
+
+  const batch = db.batch();
+  if (user.onlookers && user.onlookers[onlooker.gotandaId] && user.onlookers[onlooker.gotandaId][app]) {
+    delete user.onlookers[onlooker.gotandaId][app];
+    batch.put(user.gotandaId, user);
+  }
+  if (onlooker.onlookees && onlooker.onlookees[user.gotandaId] && onlooker.onlookees[user.gotandaId][app]) {
+    delete onlooker.onlookees[user.gotandaId][app];
+    batch.put(onlooker.gotandaId, onlooker);
+  }
+  await batch.write();
+  return true;
+}
+
+export async function delOnlooker(userOrId: string|IUser, onlookerOrId: string|IUser) {
+  const [user, onlooker] = await Promise.all([convertUserOrId(userOrId), convertUserOrId(onlookerOrId)])
+  if (!user || !onlooker) { return false; } // false tells the caller their intention wasn't satisfied
+
+  const batch = db.batch();
+  if (user.onlookers) {
+    delete user.onlookers[onlooker.gotandaId];
+    batch.put(user.gotandaId, user);
+  }
+  if (onlooker.onlookees) {
+    delete onlooker.onlookees[user.gotandaId];
+    batch.put(onlooker.gotandaId, onlooker);
+  }
+  await batch.write();
+  return true;
+}
+
+export async function delOnlookers(userOrId: string|IUser) {
+  const user = await convertUserOrId(userOrId);
+  if (user && user.onlookers) {
+    // unlink all onlooker->user relationships
+    await Promise.all(Object.keys(user.onlookers).map(k => delOnlooker(user, k)));
+    // Onlookers will no longer see `user` in their list of `onlookees`.
+    // Furthermore, `user.onlookers` will be `{}`
+  }
+  return true;
+}
+
+if (module === require.main) { db.createReadStream().on('data', data => console.log(data)); }
