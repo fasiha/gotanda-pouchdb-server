@@ -15,11 +15,11 @@ import {
   delOnlooker,
   delOnlookerApp,
   delOnlookers,
-  findApiToken,
   findOrCreateGithub,
   getAllApiTokenNames,
   getUserSafe,
-  IUser
+  IUser,
+  validOnlooker
 } from './users';
 
 mkdirpSync(__dirname + '/.data');
@@ -67,7 +67,7 @@ passport.use(
                            findOrCreateGithub(profile, githubAllowlist).then(ret => cb(null, ret))));
 // Tell Passport we want to use Bearer (API token) auth, and *name* this strategy: we'll use this name below
 passport.use(BEARER_NAME,
-             new BearerStrategy((token, cb) => findApiToken(token).then(ret => cb(null, ret ? ret : false))));
+             new BearerStrategy((token, cb) => getUserSafe(token).then(ret => cb(null, ret ? ret : false))));
 
 // Serialize an IUser into something we'll store in the user's session (very tiny)
 passport.serializeUser(function(user: IUser, cb) { cb(null, user.gotandaId); });
@@ -149,7 +149,8 @@ app.get('/loginstatus', ensureAuthenticated, (req, res) => res.send(`You're logg
 // PouchDB-Server
 import PouchDB from 'pouchdb';
 
-const pouchPrefix = __dirname + '/.data/pouches/'; // trailing / required for this to be a subdirectory!
+const pouchPrefix =
+    process.env.POUCH_PREFIX || (__dirname + '/.data/pouches/'); // trailing / required for this to be a subdirectory!
 const USER_APP_SEP = '.'; // since Gotanda userIDs contains [0-9a-zA-Z-_], this is none of these
 
 mkdirpSync(pouchPrefix);
@@ -186,14 +187,11 @@ app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
   const userId = user && (req.user as IUser).gotandaId;
   const {ownerId, app} = req.params;
   if (!(userId && app && !app.includes('/') && ownerId && !ownerId.includes('/'))) {
-    res.status(400).json('bad request');
-    return;
+    return res.status(400).json('bad request');
   }
+  if (!validOnlooker(ownerId, userId, app)) { return res.status(401).json('bad owner'); }
   const owner = await getUserSafe(ownerId);
-  if (!owner?.onlookers?.[userId]?.[app]) {
-    res.status(401).json('bad owner');
-    return;
-  }
+  if (!owner) { return res.status(401).json('bad owner'); }
 
   if (req.method === 'GET' || req.url.startsWith('/_changes') || req.url.startsWith('/_all_docs') ||
       req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
@@ -222,7 +220,7 @@ app.put('/me/onlooker/:onlookerId/app/:app', ensureAuthenticated, async (req, re
     res.status(400).json('bad onlooker');
     return;
   }
-  res.json(await addOnlookerApp(user as IUser, onlookerId, app));
+  res.json(await addOnlookerApp(userId, onlooker.gotandaId, app));
 });
 
 // User wants to *revoke* an onlooker's access to one of their apps
@@ -240,7 +238,7 @@ app.delete('/me/onlooker/:onlookerId/app/:app', ensureAuthenticated, async (req,
     res.status(400).json('bad onlooker');
     return;
   }
-  res.json(await delOnlookerApp(user as IUser, onlookerId, app));
+  res.json(await delOnlookerApp(userId, onlooker.gotandaId, app));
 });
 
 // Drama: user wants to revoke an onlooker's access to ALL their apps
@@ -258,7 +256,7 @@ app.delete('/me/onlooker/:onlookerId', ensureAuthenticated, async (req, res) => 
     res.status(400).json('bad onlooker');
     return;
   }
-  res.json(await delOnlooker(user as IUser, onlookerId));
+  res.json(await delOnlooker(userId, onlooker.gotandaId));
 });
 
 // Major drama: user wants to revoke ALL onlookers' access to ALL their apps
@@ -269,7 +267,7 @@ app.delete('/me/onlookers', ensureAuthenticated, async (req, res) => {
     res.status(400).json('bad request');
     return;
   }
-  res.json(await delOnlookers(user as IUser));
+  res.json(await delOnlookers(userId));
 });
 
 app.get(`/me/apps`, ensureAuthenticated, async (req, res) => {
@@ -329,10 +327,3 @@ app.get('/db/?$', ensureAuthenticated, (req, res) => {
 
 // All done
 app.listen(port, () => console.log(`App at 127.0.0.1:${port}`));
-
-/*
-const logRequest = (req, res, next) => {
-  console.log(Object.entries(req).filter(([_, v]) => typeof v === 'string').map(arr => arr.join(' => ')).join('\n* '));
-  next();
-}
-*/

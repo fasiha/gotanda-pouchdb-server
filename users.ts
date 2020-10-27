@@ -7,25 +7,27 @@ import {promisify} from 'util';
 
 const randomBytes = promisify(randomBytesOrig);
 
-export type Db = ReturnType<typeof levelup>;
-const db: Db = (require('level'))(__dirname + '/.data/gotanda-users-db', {valueEncoding: 'json'});
+type Db = ReturnType<typeof levelup>;
+let db: Db;
+// This user `db` contains API tokens, so we don't export it out of this module at all. To facilitate testing, we
+// provide functions to open and close it
+export function openDb(path: string) { db = (require('level'))(path, {valueEncoding: 'json'}); }
+export async function closeDb() { return db.close(); }
+openDb(process.env.GOTANDA_USERS_DB || (__dirname + '/.data/gotanda-users-db'));
 
-const Onlookers = t.record(t.string, t.record(t.string, t.boolean)); // other user -> my app -> true/false (read-only)
-const Onlookees =
-    t.record(t.string, t.record(t.string, t.boolean)); // other user -> their app -> true/false (read-only)
 const User = t.intersection([
   t.type({
     gotandaId: t.string,
     apiTokens: t.array(t.type({token: t.string, name: t.string})),
   }),
-  t.partial({
-    onlookers: Onlookers,
-    onlookees: Onlookees,
-  }),
   // we'll later allow sign up with others SSO, not just GitHub
   t.partial({github: t.UnknownRecord}),
 ]);
-export type IUser = t.TypeOf<typeof User>;
+type IUserUNSAFE = t.TypeOf<typeof User>;
+// IUser is the type that lives in the db that we want io-ts to validation
+export type IUser = Omit<t.TypeOf<typeof User>, 'apiTokens'>&{apiTokens: undefined};
+// IUserSafe OMITS API tokens: these values are safe to see outside this library. NO `export`ed funnction should accept
+// or return IUser, only IUserSafe!!
 
 async function getKey(key: string): Promise<any|undefined> {
   try {
@@ -43,7 +45,7 @@ async function getKey(key: string): Promise<any|undefined> {
  * @param key `gotanda-<ID>` OR `github-<ID>` OR `token-<ID>`, etc., anything we use to find users
  * @param allowNonGotandaKey allow `key` to be non-Gotanda-ID (only used to prevent infinite loop searches)
  */
-async function getUser(key: string, allowNonGotandaKey = true): Promise<IUser|undefined> {
+async function getUser(key: string, allowNonGotandaKey = true): Promise<IUserUNSAFE|undefined> {
   const ret = await getKey(key);
   if (ret === undefined) { return undefined; }
   const decoded = User.decode(ret);
@@ -68,7 +70,7 @@ async function getUser(key: string, allowNonGotandaKey = true): Promise<IUser|un
  * Safe version of `getUser`; "safe" in that API tokens are explicitly forbidden from appearing in the output
  * @param key same as `getUser`
  */
-export async function getUserSafe(key: string): Promise<(Omit<IUser, 'apiTokens'>& {apiTokens: undefined})|undefined> {
+export async function getUserSafe(key: string): Promise<IUser|undefined> {
   const ret = await getUser(key);
   if (!ret) { return ret; }
   return {...ret, apiTokens: undefined};
@@ -98,7 +100,7 @@ export async function findOrCreateGithub(profile: GitHubStrategy.Profile, allowl
   const hit = await getKey(githubId);
   if (hit) {
     // GitHub user is also a Gotanda user!
-    const existing = await getUser(hit);
+    const existing = await getUserSafe(hit);
     if (existing) { return existing; }
     // We had a record of this GitHub user but not the Gotanda user it pointed to?
     // Something very strange must have happened but we can deal with it.
@@ -107,35 +109,22 @@ export async function findOrCreateGithub(profile: GitHubStrategy.Profile, allowl
   // new user
 
   // find a random string that we don't already have in the db
-  let newGotandaId = ''; // Not used for return logins
+  let newGotandaId = '';
   while (!newGotandaId) {
     // RFC 4648 §5: base64url
-    const attempt = await base64urlRandom(9);
-    if (!(await getKey(attempt))) { newGotandaId = 'gotanda-' + attempt; }
+    const attempt = 'gotanda-' + (await base64urlRandom(9));
+    if (!(await getKey(attempt))) { newGotandaId = attempt; }
   }
 
   const github: Partial<typeof profile> = {...profile};
   // I'm not comfortable storing this. I'd like to store even less (no name, avatar, etc.) but for now:
   delete github['_json'];
   delete github['_raw'];
-  const ret: IUser = {github, gotandaId: newGotandaId, apiTokens: []};
+  const ret: IUserUNSAFE = {github, gotandaId: newGotandaId, apiTokens: []};
 
   await db.batch().put(githubId, newGotandaId).put(newGotandaId, ret).write();
-  return ret;
+  return {...ret, apiTokens: undefined};
 }
-
-export async function findApiToken(token: string): Promise<IUser|undefined> {
-  const hit = await getKey(token);
-  if (hit) {
-    const existing = await getUser(hit);
-    if (existing && existing.apiTokens && existing.apiTokens.find(o => o.token === token)) { return existing; }
-    // token points to user either non-existent or who deleted this token but wasn't cleaned up. Delete it.
-    await deleteOrphanApiToken(token);
-  }
-  return undefined;
-}
-
-async function deleteOrphanApiToken(token: string): Promise<boolean> { return db.del(token).then(() => true); }
 
 export async function createApiToken(gotandaId: string, name: string): Promise<string|undefined> {
   const newToken = 'token-' + await base64urlRandom(21);
@@ -196,75 +185,96 @@ export async function getAllApiTokenNames(gotandaId: string): Promise<string[]> 
   return user.apiTokens.map(o => o.name);
 }
 
-function convertUserOrId(userOrId: string|IUser) { return typeof userOrId === 'string' ? getUser(userOrId) : userOrId; }
-export async function addOnlookerApp(userOrId: string|IUser, onlookerOrId: string|IUser, app: string) {
-  const [user, onlooker] = await Promise.all([convertUserOrId(userOrId), convertUserOrId(onlookerOrId)])
-  if (!user || !onlooker) { return false; } // false tells the caller their intention wasn't satisfied
+// This only accepts stringy Gotanda IDs in order to be very fast
+export async function validOnlooker(creatorGotandaId: string, onlookerGotandaId: string, app: string) {
+  try {
+    return !!(await db.get(`ro/creator/${creatorGotandaId}/onlooker/${onlookerGotandaId}/app/${app}`));
+    // just check creator-to-onlooker link because that's what the creator can readily see and can invalidate.
+    // don't bother to check whether the opposite link exists.
+  } catch { return false; }
+}
 
-  const batch = db.batch();
+export async function addOnlookerApp(userGotandaId: string, onlookerGotandaId: string, app: string) {
+  await db.batch()
+      .put(`ro/creator/${userGotandaId}/onlooker/${onlookerGotandaId}/app/${app}`, '1')
+      .put(`ro/onlooker/${onlookerGotandaId}/creator/${userGotandaId}/app/${app}`, '1')
+      .write();
+  return true;
+}
+
+export async function delOnlookerApp(userGotandaId: string, onlookerGotandaId: string, app: string) {
+  await db.batch()
+      .del(`ro/creator/${userGotandaId}/onlooker/${onlookerGotandaId}/app/${app}`)
+      .del(`ro/onlooker/${onlookerGotandaId}/creator/${userGotandaId}/app/${app}`)
+      .write();
+  return true;
+}
+
+export async function delOnlooker(userGotandaId: string, onlookerGotandaId: string) {
+  const batch: ReturnType<typeof db.batch> = await new Promise((resolve, reject) => {
+    const gte = `ro/creator/${userGotandaId}/onlooker/${onlookerGotandaId}/`;
+    const batch = db.batch();
+    db.createKeyStream({gte, lt: gte + '\ufff0'})
+        .on('data',
+            (key: string) => {
+              batch.del(key);
+              const [/* ro */, /* creator */, creator, /* onlooker */, onlooker, /* app */, app] = key.split('/');
+              batch.del(`ro/onlooker/${onlooker}/creator/${creator}/app/${app}`);
+            })
+        .on('error', e => reject(e))
+        .on('close', () => resolve(batch))
+  });
+  await batch.write();
+  return true;
+}
+
+export async function delOnlookers(userGotandaId: string) {
+  const batch: ReturnType<typeof db.batch> = await new Promise((resolve, reject) => {
+    const gte = `ro/creator/${userGotandaId}/`;
+    // exact same business logic as above in delOnlooker after this! Candidate for abstraction?
+    const batch = db.batch();
+    db.createKeyStream({gte, lt: gte + '\ufff0'})
+        .on('data',
+            (key: string) => {
+              batch.del(key);
+              const [/* ro */, /* creator */, creator, /* onlooker */, onlooker, /* app */, app] = key.split('/');
+              batch.del(`ro/onlooker/${onlooker}/creator/${creator}/app/${app}`);
+            })
+        .on('error', e => reject(e))
+        .on('close', () => resolve(batch))
+  });
+  await batch.write();
+  return true;
+}
+
+export async function allOnlookerLinks(userGotandaId: string) {
+  const onlookers: {onlooker: string, app: string}[] = [];
   {
-    // this will mutate the input even for the caller (unless `onlookers` isn't in `user`), but that's fine
-    const onlookers = user.onlookers || {};
-    if (!(onlooker.gotandaId in onlookers)) { onlookers[onlooker.gotandaId] = {}; }
-    onlookers[onlooker.gotandaId][app] = true;
-    const doc: IUser = {...user, onlookers};
-    batch.put(doc.gotandaId, doc);
+    const gte = `ro/creator/${userGotandaId}/`;
+    const keys: string[] = await drainStream(db.createKeyStream({gte, lt: gte + '\ufff0'}));
+    for (const key of keys) {
+      const [/* ro */, /* creator */, creator, /* onlooker */, onlooker, /* app */, app] = key.split('/');
+      onlookers.push({onlooker, app});
+    }
   }
+  const creators: {creator: string, app: string}[] = [];
   {
-    // same caveat as above
-    const onlookees = user.onlookers || {};
-    if (!(user.gotandaId in onlookees)) { onlookees[user.gotandaId] = {}; }
-    onlookees[user.gotandaId][app] = true;
-    const doc: IUser = {...onlooker, onlookees};
-    batch.put(doc.gotandaId, doc);
+    const gte = `ro/onlooker/${userGotandaId}/`;
+    const keys: string[] = await drainStream(db.createKeyStream({gte, lt: gte + '\ufff0'}));
+    for (const key of keys) {
+      const [/* ro */, /* onlooker */, onlooker, /* creator */, creator, /* app */, app] = key.split('/');
+      creators.push({creator, app});
+    }
   }
-  await batch.write();
-  return true;
+  return {onlookers, creators};
 }
 
-export async function delOnlookerApp(userOrId: string|IUser, onlookerOrId: string|IUser, app: string) {
-  const [user, onlooker] = await Promise.all([convertUserOrId(userOrId), convertUserOrId(onlookerOrId)])
-  if (!user || !onlooker) { return false; } // false tells the caller their intention wasn't satisfied
-
-  const batch = db.batch();
-  if (user.onlookers && user.onlookers[onlooker.gotandaId] && user.onlookers[onlooker.gotandaId][app]) {
-    delete user.onlookers[onlooker.gotandaId][app];
-    batch.put(user.gotandaId, user);
-  }
-  if (onlooker.onlookees && onlooker.onlookees[user.gotandaId] && onlooker.onlookees[user.gotandaId][app]) {
-    delete onlooker.onlookees[user.gotandaId][app];
-    batch.put(onlooker.gotandaId, onlooker);
-  }
-  await batch.write();
-  return true;
+function drainStream<T>(stream: NodeJS.ReadableStream): Promise<T[]> {
+  const ret: T[] = [];
+  return new Promise((resolve, reject) => {
+    stream.on('data', x => ret.push(x))
+        .on('error', e => reject(e))
+        .on('close', () => resolve(ret))
+        .on('end', () => resolve(ret));
+  });
 }
-
-export async function delOnlooker(userOrId: string|IUser, onlookerOrId: string|IUser) {
-  const [user, onlooker] = await Promise.all([convertUserOrId(userOrId), convertUserOrId(onlookerOrId)])
-  if (!user || !onlooker) { return false; } // false tells the caller their intention wasn't satisfied
-
-  const batch = db.batch();
-  if (user.onlookers) {
-    delete user.onlookers[onlooker.gotandaId];
-    batch.put(user.gotandaId, user);
-  }
-  if (onlooker.onlookees) {
-    delete onlooker.onlookees[user.gotandaId];
-    batch.put(onlooker.gotandaId, onlooker);
-  }
-  await batch.write();
-  return true;
-}
-
-export async function delOnlookers(userOrId: string|IUser) {
-  const user = await convertUserOrId(userOrId);
-  if (user && user.onlookers) {
-    // unlink all onlooker->user relationships
-    await Promise.all(Object.keys(user.onlookers).map(k => delOnlooker(user, k)));
-    // Onlookers will no longer see `user` in their list of `onlookees`.
-    // Furthermore, `user.onlookers` will be `{}`
-  }
-  return true;
-}
-
-if (module === require.main) { db.createReadStream().on('data', data => console.log(data)); }
