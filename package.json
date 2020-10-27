@@ -26,8 +26,10 @@
     "@types/passport-github": "^1.1.5",
     "@types/passport-http-bearer": "^1.0.35",
     "@types/pouchdb": "^6.4.0",
+    "@types/tape": "^4.13.0",
     "nodemon": "^2.0.4",
     "servor": "^4.0.2",
+    "tape": "^5.0.1",
     "typescript": "^3.9.7"
   },
   "dependencies": {
