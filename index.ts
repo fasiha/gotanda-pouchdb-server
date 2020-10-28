@@ -82,7 +82,8 @@ app.use(require('express-session')({
   secret: env.SESSION_SECRET,
   resave: true,
   saveUninitialized: true,
-  store: new (require('level-session-store')(require('express-session')))(__dirname + '/.data/level-session-store'),
+  store: new (require('level-session-store')(require('express-session')))(process.env.SESSION_STORE ||
+                                                                          (__dirname + '/.data/level-session-store')),
 }));
 // FIRST init express' session, THEN passport's
 app.use(passport.initialize());
