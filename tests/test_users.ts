@@ -15,7 +15,6 @@ const partialGithubProfile = {
 tape('create github with * allowlist', async t => {
   // setup: initialize `u`'s db
   const GOTANDA_USERS_DB = '/tmp/gotanda_test_users_' + (Math.random().toString(36).slice(2));
-  process.env.GOTANDA_USERS_DB = GOTANDA_USERS_DB;
   u.openDb(GOTANDA_USERS_DB);
 
   // test
@@ -42,7 +41,6 @@ tape('create github with * allowlist', async t => {
 tape('test allowlist', async t => {
   // setup
   const GOTANDA_USERS_DB = '/tmp/gotanda_test_users_' + (Math.random().toString(36).slice(2));
-  process.env.GOTANDA_USERS_DB = GOTANDA_USERS_DB;
   u.openDb(GOTANDA_USERS_DB);
 
   // test
@@ -75,7 +73,6 @@ tape('test allowlist', async t => {
 tape('tokens', async t => {
   // setup
   const GOTANDA_USERS_DB = '/tmp/gotanda_test_users_' + (Math.random().toString(36).slice(2));
-  process.env.GOTANDA_USERS_DB = GOTANDA_USERS_DB;
   u.openDb(GOTANDA_USERS_DB);
 
   // test
@@ -119,11 +116,10 @@ tape('tokens', async t => {
 tape('read-only (ro) onlooker links', async t => {
   // setup
   const GOTANDA_USERS_DB = '/tmp/gotanda_test_users_' + (Math.random().toString(36).slice(2));
-  process.env.GOTANDA_USERS_DB = GOTANDA_USERS_DB;
   u.openDb(GOTANDA_USERS_DB);
 
   // test
-  let [alice, bob, chan] =
+  const [alice, bob, chan] =
       await Promise.all(['a1', 'b2', 'c3'].map(id => u.findOrCreateGithub({...partialGithubProfile, id}, '*')));
   if (!(alice && bob && chan)) { throw new Error('should never happen'); }
 

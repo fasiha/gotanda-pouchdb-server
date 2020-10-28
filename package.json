@@ -8,7 +8,7 @@
     "serve": "node index.js",
     "serve-watch": "nodemon -w index.js index.js",
     "client-serve": "cd any-client-app && npx servor . index.html 3001",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tape tests/*.js",
     "start": "npm run serve"
   },
   "engines": {
