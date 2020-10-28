@@ -131,6 +131,18 @@ tape('everything', async t => {
       await bobDb.replicate.to(bobRemote);
       t.ok(false, 'this should have thrown')
     } catch (e) { t.ok(true, "bob can't sync to alice's db"); }
+
+    // alice can allow chan to be an onlooker with just github ID, not gotandaId:
+    t.ok((await fetch(`${baseUrl}/me/onlooker/github-${chan.github?.id}/app/adb`, makeHeader(aliceToken, 'PUT'))).ok);
+    // and chan can access it without knowing alice's gotandaId
+    const chanRemote = new PouchDB(`${baseUrl}/owner/github-${alice.github?.id}/app/adb`, {
+      fetch: (url, opts) => {
+        if (!opts) { opts = {}; }
+        opts.headers.set('Authorization', `Bearer ${chanToken}`);
+        return PouchDB.fetch(url, opts);
+      }
+    });
+    t.ok((await chanRemote.allDocs()).rows.length === 3, 'chan sees 3 docs without anyone needing gotandaIds');
   }
 
   ///////////

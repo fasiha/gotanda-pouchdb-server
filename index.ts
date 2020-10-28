@@ -190,9 +190,9 @@ app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
   if (!(userId && app && !app.includes('/') && ownerId && !ownerId.includes('/'))) {
     return res.status(400).json('bad request');
   }
-  if (!await validOnlooker(ownerId, userId, app)) { return res.status(401).json('bad request'); }
   const owner = await getUserSafe(ownerId);
   if (!owner) { return res.status(401).json('bad request'); }
+  if (!await validOnlooker(owner.gotandaId, userId, app)) { return res.status(401).json('bad request'); }
 
   if (req.method === 'GET' || req.url.startsWith('/_changes') || req.url.startsWith('/_all_docs') ||
       req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
