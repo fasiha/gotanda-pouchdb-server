@@ -34,6 +34,7 @@ tape('create github with * allowlist', async t => {
   t.ok(gotandaVal && gotandaVal.apiTokens === undefined, 'apiTokens is undefined outside users module');
 
   // teardown
+  t.end();
   await u.closeDb();
   await rmdir(GOTANDA_USERS_DB, {recursive: true});
 });
@@ -66,6 +67,7 @@ tape('test allowlist', async t => {
   }
 
   // teardown
+  t.end();
   await u.closeDb();
   await rmdir(GOTANDA_USERS_DB, {recursive: true});
 });
@@ -109,6 +111,7 @@ tape('tokens', async t => {
   t.ok((await Promise.all([token1, token2, 'still bad'].map(u.getUserSafe))).every(x => !x), 'all tokens gone');
 
   // teardown
+  t.end();
   await u.closeDb();
   await rmdir(GOTANDA_USERS_DB, {recursive: true});
 });
@@ -252,6 +255,7 @@ tape('read-only (ro) onlooker links', async t => {
   }
 
   // teardown
+  t.end();
   await u.closeDb();
   await rmdir(GOTANDA_USERS_DB, {recursive: true});
 });
