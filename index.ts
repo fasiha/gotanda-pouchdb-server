@@ -190,9 +190,9 @@ app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
   if (!(userId && app && !app.includes('/') && ownerId && !ownerId.includes('/'))) {
     return res.status(400).json('bad request');
   }
-  if (!await validOnlooker(ownerId, userId, app)) { return res.status(401).json('bad owner'); }
+  if (!await validOnlooker(ownerId, userId, app)) { return res.status(401).json('bad request'); }
   const owner = await getUserSafe(ownerId);
-  if (!owner) { return res.status(401).json('bad owner'); }
+  if (!owner) { return res.status(401).json('bad request'); }
 
   if (req.method === 'GET' || req.url.startsWith('/_changes') || req.url.startsWith('/_all_docs') ||
       req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
@@ -204,7 +204,7 @@ app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
     req.url = `/${owner.gotandaId}${USER_APP_SEP}${app}${req.url}`;
     return db(req, res);
   }
-  return res.status(401);
+  return res.status(401).json('bad request');
 });
 
 // User wants to designate another user as an onlooker for the given app
@@ -328,3 +328,10 @@ app.get('/db/?$', ensureAuthenticated, (req, res) => {
 
 // All done
 app.listen(port, () => console.log(`App at 127.0.0.1:${port}`));
+
+/*
+const logRequest = (req: any, res: any, next: any) => {
+  console.log(Object.entries(req).filter(([_, v]) => typeof v === 'string').map(arr => arr.join(' => ')).join('\n* '));
+  next();
+};
+*/

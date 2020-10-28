@@ -118,6 +118,19 @@ tape('everything', async t => {
     // bob can now see the new doc
     await bobDb.replicate.from(bobRemote);
     t.ok((await bobDb.allDocs()).rows.length === 3, 'bob has the new row');
+
+    // bob can't write to alice's database
+    try {
+      await bobRemote.upsert('evil bob', () => ({wont: 'work'}));
+      t.ok(false, 'this should have thrown')
+    } catch (e) { t.ok(true, "bob can't write to alice's db"); }
+    t.ok((await remoteDb.allDocs()).rows.length === 3, 'alice remote still has 3 rows');
+
+    // bob can write to his db but can't replicate to alice's database
+    try {
+      await bobDb.replicate.to(bobRemote);
+      t.ok(false, 'this should have thrown')
+    } catch (e) { t.ok(true, "bob can't sync to alice's db"); }
   }
 
   ///////////
