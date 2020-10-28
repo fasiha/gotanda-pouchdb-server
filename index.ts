@@ -190,7 +190,7 @@ app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
   if (!(userId && app && !app.includes('/') && ownerId && !ownerId.includes('/'))) {
     return res.status(400).json('bad request');
   }
-  if (!validOnlooker(ownerId, userId, app)) { return res.status(401).json('bad owner'); }
+  if (!await validOnlooker(ownerId, userId, app)) { return res.status(401).json('bad owner'); }
   const owner = await getUserSafe(ownerId);
   if (!owner) { return res.status(401).json('bad owner'); }
 

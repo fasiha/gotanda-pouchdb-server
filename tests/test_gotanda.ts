@@ -3,6 +3,7 @@ import {rmdir} from 'fs/promises';
 import {sync as mkdirpSync} from 'mkdirp';
 import fetch from 'node-fetch';
 import PouchDB from 'pouchdb';
+import PouchUpsert from 'pouchdb-upsert';
 import tape from 'tape';
 
 import * as u from '../users';
@@ -21,6 +22,7 @@ mkdirpSync(env.GOTANDA_USERS_DB);
 mkdirpSync(env.SESSION_STORE);
 mkdirpSync(env.POUCH_PREFIX);
 PouchDB.plugin(require('pouchdb-adapter-memory'));
+PouchDB.plugin(PouchUpsert);
 const baseUrl = `http://127.0.0.1:${env.PORT}`;
 
 // run
@@ -55,36 +57,86 @@ tape('everything', async t => {
     t.ok((await res.text()).includes('Login with'), 'initial visit ok');
   }
 
-  // helper
-  async function testToken(token: string) {
-    return (await fetch(`${baseUrl}/loginstatus`, {headers: {Authorization: `Bearer ${token}`}})).ok;
-  }
+  // helpers
+  const makeHeader = (token: string, method = 'GET') => ({method, headers: {Authorization: `Bearer ${token}`}});
+  async function testToken(token: string) { return (await fetch(`${baseUrl}/loginstatus`, makeHeader(token))).ok; }
 
   // make sure tokens all work
   for (const token of [aliceToken, bobToken, chanToken]) { t.ok(await testToken(token), 'token ok'); }
   // make sure we can get token names
   {
-    const tokenNames =
-        await (await fetch(`${baseUrl}/auth/tokens`, {headers: {Authorization: `Bearer ${aliceToken}`}})).json();
+    const tokenNames = await (await fetch(`${baseUrl}/auth/tokens`, makeHeader(aliceToken))).json();
     t.ok(tokenNames.length === 1 && tokenNames[0] === initTokenName, 'one token name')
   }
 
+  ///////////
+  // Test PouchDB!
+  ///////////
+  const db = new PouchDB('localdb', {adapter: 'memory'});
+  await db.upsert('test1', () => ({text: 'hello world'}));
+  await db.upsert('test2', () => ({text: 'hello pouch'}));
+
+  {
+    // alice creates a remote db and syncs to it
+    const remoteDb = new PouchDB(`${baseUrl}/db/adb`, {
+      fetch: (url, opts) => {
+        if (!opts) { opts = {}; }
+        opts.headers.set('Authorization', `Bearer ${aliceToken}`);
+        return PouchDB.fetch(url, opts);
+      }
+    });
+    t.ok((await remoteDb.allDocs()).rows.length === 0, 'initial remote db has 0 rows');
+    await db.replicate.to(remoteDb);
+    t.ok((await remoteDb.allDocs()).rows.length === 2, 'after initial replication, remote has 2 rows');
+
+    t.ok((await fetch(`${baseUrl}/db/adb`, makeHeader(aliceToken))).ok, 'alice can GET db');
+
+    const onlookUrl = `${baseUrl}/owner/${alice.gotandaId}/app/adb`;
+    t.ok(!(await fetch(onlookUrl, makeHeader(bobToken))).ok, "bob can't");
+    t.ok(!(await fetch(onlookUrl, makeHeader(chanToken))).ok, "chan can't");
+
+    // alice allows bob to be an onlooker to `adb`
+    await fetch(`${baseUrl}/me/onlooker/${bob.gotandaId}/app/adb`, makeHeader(aliceToken, 'PUT'));
+    t.ok((await fetch(onlookUrl, makeHeader(bobToken))).ok, "bob can now GET alice's db");
+    t.ok(!(await fetch(onlookUrl, makeHeader(chanToken))).ok, "chan still can't");
+
+    // bob can replicate alice's `adb`
+    const bobDb = new PouchDB('bobdb', {adapter: 'memory'});
+    const bobRemote = new PouchDB(onlookUrl, {
+      fetch: (url, opts) => {
+        if (!opts) { opts = {}; }
+        opts.headers.set('Authorization', `Bearer ${bobToken}`);
+        return PouchDB.fetch(url, opts);
+      }
+    });
+    await bobDb.replicate.from(bobRemote);
+    t.ok((await bobDb.allDocs()).rows.length === 2, 'bob has both rows');
+
+    // alice adds a new document to local and replicates it to Gotanda
+    await db.upsert('test3', () => ({text: 'hello bob'}));
+    await db.replicate.to(remoteDb);
+    // bob can now see the new doc
+    await bobDb.replicate.from(bobRemote);
+    t.ok((await bobDb.allDocs()).rows.length === 3, 'bob has the new row');
+  }
+
+  ///////////
   // test deleting tokens
+  ///////////
   async function createToken(oldToken: string, newName: string) {
-    const res = await fetch(`${baseUrl}/auth/token/${newName}`, {headers: {Authorization: `Bearer ${oldToken}`}});
+    const res = await fetch(`${baseUrl}/auth/token/${newName}`, makeHeader(oldToken));
     const newToken = await res.json();
-    t.ok((await fetch(`${baseUrl}/loginstatus`, {headers: {Authorization: `Bearer ${newToken}`}})).ok, 'new token ok');
+    t.ok((await fetch(`${baseUrl}/loginstatus`, makeHeader(newToken))).ok, 'new token ok');
     return newToken;
   }
 
   // make sure if we create new tokens with the same name, the old ones no longer work
   {
     const secondToken = await createToken(aliceToken, 'second');
-    await createToken(aliceToken, 'second');
+    await createToken(aliceToken, 'second'); // NEW token with SAME name: old one should be dead
     t.ok(!await testToken(secondToken), 'previous token invalidated');
 
-    const tokenNames =
-        await (await fetch(`${baseUrl}/auth/tokens`, {headers: {Authorization: `Bearer ${aliceToken}`}})).json();
+    const tokenNames = await (await fetch(`${baseUrl}/auth/tokens`, makeHeader(aliceToken))).json();
     t.deepEqual(tokenNames.sort(), [initTokenName, 'second'].sort(), 'two token names');
   }
   // test deleting some and all tokens
@@ -92,21 +144,21 @@ tape('everything', async t => {
     const newToken = await createToken(aliceToken, 'new1');
     const newToken2 = await createToken(aliceToken, 'new2');
 
-    const tokenNames =
-        await (await fetch(`${baseUrl}/auth/tokens`, {headers: {Authorization: `Bearer ${aliceToken}`}})).json();
+    const tokenNames = await (await fetch(`${baseUrl}/auth/tokens`, makeHeader(aliceToken))).json();
     t.deepEqual(tokenNames.sort(), [initTokenName, 'second', 'new1', 'new2'].sort(), '4 token names');
 
     // created and tested new tokens. Now delete just one
-    await fetch(`${baseUrl}/auth/token/new1`, {method: 'DELETE', headers: {Authorization: `Bearer ${aliceToken}`}});
+    await fetch(`${baseUrl}/auth/token/new1`, makeHeader(aliceToken, 'DELETE'));
     t.ok(!await testToken(newToken), 'deleted token invalidated');
     t.ok(await testToken(newToken2), 'but other one is fine');
     t.ok(await testToken(aliceToken), 'original is fine too');
 
-    await fetch(`${baseUrl}/auth/tokens`, {method: 'DELETE', headers: {Authorization: `Bearer ${aliceToken}`}})
+    await fetch(`${baseUrl}/auth/tokens`, makeHeader(aliceToken, 'DELETE'));
     for (const token of [aliceToken, newToken, newToken2]) { t.ok(!await testToken(token), 'all tokens gone'); }
   }
 
   // cleanup
+  t.end();
   spawned.kill();
   rmdir(tmpData, {recursive: true});
 });
