@@ -91,7 +91,7 @@ tape('everything', async t => {
 
     t.ok((await fetch(`${baseUrl}/db/adb`, makeHeader(aliceToken))).ok, 'alice can GET db');
 
-    const onlookUrl = `${baseUrl}/owner/${alice.gotandaId}/app/adb`;
+    const onlookUrl = `${baseUrl}/creator/${alice.gotandaId}/app/adb`;
     t.ok(!(await fetch(onlookUrl, makeHeader(bobToken))).ok, "bob can't");
     t.ok(!(await fetch(onlookUrl, makeHeader(chanToken))).ok, "chan can't");
 
@@ -135,7 +135,7 @@ tape('everything', async t => {
     // alice can allow chan to be an onlooker with just github ID, not gotandaId:
     t.ok((await fetch(`${baseUrl}/me/onlooker/github-${chan.github?.id}/app/adb`, makeHeader(aliceToken, 'PUT'))).ok);
     // and chan can access it without knowing alice's gotandaId
-    const chanRemote = new PouchDB(`${baseUrl}/owner/github-${alice.github?.id}/app/adb`, {
+    const chanRemote = new PouchDB(`${baseUrl}/creator/github-${alice.github?.id}/app/adb`, {
       fetch: (url, opts) => {
         if (!opts) { opts = {}; }
         opts.headers.set('Authorization', `Bearer ${chanToken}`);

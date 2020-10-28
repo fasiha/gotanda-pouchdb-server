@@ -9,6 +9,7 @@ import {Strategy as BearerStrategy} from 'passport-http-bearer';
 
 import {
   addOnlookerApp,
+  allOnlookerLinks,
   createApiToken,
   deleteAllApiTokens,
   deleteApiToken,
@@ -96,12 +97,27 @@ app.get('/', async (req, res) => {
 <a href="/auth/github">Login with GitHub</a>`);
     return;
   }
-  const names = await getAllApiTokenNames((req.user as IUser).gotandaId);
+  const id = (req.user as IUser).gotandaId;
+  const tokenNames = await getAllApiTokenNames(id);
+
+  const links = await allOnlookerLinks(id);
+  const onlookersText =
+      links.onlookers.length
+          ? `Your onlookers:<ul>${links.onlookers.map(o => `<li>${o.onlooker} can see ${o.app}`)}</ul>`
+          : "You haven't made anyone an onlooker for any apps";
+  const creatorsText = links.creators.length
+                           ? `You're an onlooker to:<ul>${links.creators.map(o => `<li>${o.creator}'s ${o.app}`)}</ul>`
+                           : "Nobody has made you an onlooker";
+
   const ret = `<title>Gotanda</title>
 <h1>Welcome to Gotanda</h1>
 <p>You're logged in! <a href="/logout">Logout</a>
 <p>
-${names.length ? `Your tokens:<ul>${names.map(name => '<li>' + name)}</ul>` : 'You have created no tokens.'}
+${tokenNames.length ? `Your tokens:<ul>${tokenNames.map(name => '<li>' + name)}</ul>` : 'You have created no tokens.'}
+<p>
+${onlookersText}
+<p>
+${creatorsText}
 <p>
 Here's everything Gotanda has saved about you:
 <pre>${JSON.stringify(req.user, null, 3)}</pre>
@@ -183,16 +199,16 @@ app.use(`/db/:app`, ensureAuthenticated, (req, res) => {
 });
 
 // User trying to read *another* user's database
-app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
+app.use(`/creator/:creatorId/app/:app`, ensureAuthenticated, async (req, res) => {
   const user = req.user;
   const userId = user && (req.user as IUser).gotandaId;
-  const {ownerId, app} = req.params;
-  if (!(userId && app && !app.includes('/') && ownerId && !ownerId.includes('/'))) {
+  const {creatorId, app} = req.params;
+  if (!(userId && app && !app.includes('/') && creatorId && !creatorId.includes('/'))) {
     return res.status(400).json('bad request');
   }
-  const owner = await getUserSafe(ownerId);
-  if (!owner) { return res.status(401).json('bad request'); }
-  if (!await validOnlooker(owner.gotandaId, userId, app)) { return res.status(401).json('bad request'); }
+  const creator = await getUserSafe(creatorId);
+  if (!creator) { return res.status(401).json('bad request'); }
+  if (!await validOnlooker(creator.gotandaId, userId, app)) { return res.status(401).json('bad request'); }
 
   if (req.method === 'GET' || req.url.startsWith('/_changes') || req.url.startsWith('/_all_docs') ||
       req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
@@ -201,7 +217,7 @@ app.use(`/owner/:ownerId/app/:app`, ensureAuthenticated, async (req, res) => {
     // https://docs.couchdb.org/en/stable/api/database/bulk-api.html#post--db-_all_docs
 
     // As when the user is requesting their own database (above): rewrite the URL and send to PouchDB-Server
-    req.url = `/${owner.gotandaId}${USER_APP_SEP}${app}${req.url}`;
+    req.url = `/${creator.gotandaId}${USER_APP_SEP}${app}${req.url}`;
     return db(req, res);
   }
   return res.status(401).json('bad request');
