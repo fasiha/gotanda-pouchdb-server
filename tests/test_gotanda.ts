@@ -14,7 +14,7 @@ const env = {
   SESSION_STORE: `${tmpData}/sessions`,
   POUCH_PREFIX: `${tmpData}/pouches`,
   GOTANDA_USERS_DB: `${tmpData}/users`,
-  PORT: '4599',
+  PORT: '' + (4599 + Math.floor(Math.random() * 50)),
 };
 
 // setup
