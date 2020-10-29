@@ -119,7 +119,7 @@ Step one: you tell Gotanda that a user with `onlookerId` can read your `app` dat
 - `app` is the same as above as the `/db/:app` endpoint described above.
 
 #### `* /creator/:creatorId/app/:app` (some restrictions on methods and URLs for security)
-This is the onlooker equivalent to the `db/:app` endpoint above that you use to connect to your own apps. This is the endpoint that an onlooker provides to PouchDB to read the `app` database of the `creatorId` user, assuming the creator has shared this `app` with the signed-in onlooker.
+This is the onlooker equivalent to the `db/:app` endpoint above (that you use to connect to your own apps). This is the endpoint that an onlooker provides to PouchDB to read the `app` database of the `creatorId` user, assuming the creator has shared this `app` with the signed-in onlooker.
 
 > Gotanda allows only GET requests (which are read-only), and some allowable PUT/POST requests (which tend to be write-oriented) to non-data CouchDB/PouchDB URLs like `_all_docs`. However, Gotanda has not been security-audited nor battle-tested so please be cautious with what data you ask users to put on Gotanda.
 
@@ -140,6 +140,7 @@ type Links = {
   creators: {creator: string, app: string}[],
 }
 ```
+The `onlooker` and `creator` strings will be Gotanda IDs, in the form of `gotanda-<random string>`. If you added a user as an onlooker using their GitHub ID, you might not recognize this other ID that Gotanda uses internally to reference them.
 
 ### `GET /me/apps`
 Gives you (in JSON) an array of app names synced to this Gotanda server. This list matches the "app" part of `/db/:app` endpoint above.
