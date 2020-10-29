@@ -63,6 +63,9 @@ tape('everything', async t => {
 
   // make sure tokens all work
   for (const token of [aliceToken, bobToken, chanToken]) { t.ok(await testToken(token), 'token ok'); }
+  // make sure bad token doesn't work
+  t.ok(!await testToken('bad-token'), 'bad token not ok');
+
   // make sure we can get token names
   {
     const tokenNames = await (await fetch(`${baseUrl}/auth/tokens`, makeHeader(aliceToken))).json();
