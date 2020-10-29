@@ -143,6 +143,59 @@ tape('everything', async t => {
       }
     });
     t.ok((await chanRemote.allDocs()).rows.length === 3, 'chan sees 3 docs without anyone needing gotandaIds');
+
+    // chan can add alice as an onlooker to some other db
+    t.ok(
+        (await fetch(`${baseUrl}/me/onlooker/github-${alice.github?.id}/app/chandb`, makeHeader(chanToken, 'PUT'))).ok);
+    // when alice gets all onlooker relationships,
+    type Links = {onlookers: {onlooker: string, app: string}[], creators: {creator: string, app: string}[]};
+    {
+      const aliceLinks: Links = await (await fetch(`${baseUrl}/me/onlookers`, makeHeader(aliceToken))).json();
+      t.deepEqual(aliceLinks.creators, [{creator: chan.gotandaId, app: 'chandb'}], "alice is onlooking chan's chandb");
+      t.deepEqual(aliceLinks.onlookers.map(o => o.onlooker).sort(), [chan.gotandaId, bob.gotandaId].sort(),
+                  "alice has two onlookers");
+      t.deepEqual(aliceLinks.onlookers.map(o => o.app).sort(), ["adb", "adb"].sort(),
+                  "they're both onlooking the same db");
+    }
+    // alice can delete bob's access to adb
+    t.ok((await fetch(`${baseUrl}/me/onlooker/github-${bob.github?.id}/app/adb`, makeHeader(aliceToken, 'DELETE'))).ok);
+    // bob can no longer see alice's adb
+    try {
+      await bobRemote.allDocs();
+      t.ok(false, 'this should have thrown')
+    } catch (e) { t.ok(true, "bob can't read alice's adb any more"); }
+
+    // alice can add other dbs for bob and chan to onlook
+    for (const u of [bob, chan]) {
+      for (const db of ['b_db', 'c_db']) {
+        t.ok(
+            (await fetch(`${baseUrl}/me/onlooker/github-${u.github?.id}/app/${db}`, makeHeader(aliceToken, 'PUT'))).ok);
+      }
+    }
+    {
+      const aliceLinks: Links = await (await fetch(`${baseUrl}/me/onlookers`, makeHeader(aliceToken))).json();
+      t.ok(aliceLinks.onlookers.length === 5, 'alice has 5 onlooker/app pairs');
+    }
+    // alice revokes bob's onlooker status from all apps
+    t.ok((await fetch(`${baseUrl}/me/onlooker/github-${bob.github?.id}`, makeHeader(aliceToken, 'DELETE'))).ok);
+    {
+      const aliceLinks: Links = await (await fetch(`${baseUrl}/me/onlookers`, makeHeader(aliceToken))).json();
+      t.ok(aliceLinks.onlookers.length === 3, 'alice has 3 onlooker/app pairs');
+      t.ok(aliceLinks.onlookers.filter(o => o.onlooker === bob.gotandaId).length === 0, 'none are bob');
+      t.ok(aliceLinks.onlookers.every(o => o.onlooker === chan.gotandaId), 'all are chan');
+    }
+    // alice adds another db to bob
+    t.ok((await fetch(`${baseUrl}/me/onlooker/github-${bob.github?.id}/app/zdb`, makeHeader(aliceToken, 'PUT'))).ok);
+    {
+      const aliceLinks: Links = await (await fetch(`${baseUrl}/me/onlookers`, makeHeader(aliceToken))).json();
+      t.ok(aliceLinks.onlookers.length === 4, 'alice has 4 onlooker/app pairs after adding bob to zdb');
+    }
+    // now when alice deletes ALL onlookers, we can be sure bob and chan are gone
+    t.ok((await fetch(`${baseUrl}/me/onlookers`, makeHeader(aliceToken, 'DELETE'))).ok);
+    {
+      const aliceLinks: Links = await (await fetch(`${baseUrl}/me/onlookers`, makeHeader(aliceToken))).json();
+      t.ok(aliceLinks.onlookers.length === 0, 'alice has no onlookers after deleting all onlooker links');
+    }
   }
 
   ///////////

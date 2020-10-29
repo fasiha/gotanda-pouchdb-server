@@ -107,7 +107,7 @@ Logs you out of Gotanda in the browser.
 This is the endpoint you should connect to with PouchDB. Gotanda internally rewrites the URL before giving it to PouchDB-Server so that Gotanda stores this app's data in a single database isolated from other users and other apps. This is the really important endpoint—the rest are by comparison much more fluffy! Except, that is, for the read-only onlooker API below—
 
 ### Read-only onlooker API
-Gotanda allows you to designate another user on the same server as an "onlooker" on an app-by-app basis—they will have read-only access to each app you specify. More specifically, they will be able to create remote PouchDBs pointing at *your* databases and sync *from* there to their PouchDBs. Gotanda does not yet support *read-write*, which is why we use the phrase "onlooker" instead of "friend", but you can potentially achieve that by two people mutually adding each other as onlookers.
+Gotanda allows you to designate another user on the same server as an "onlooker" on an app-by-app basis—they will have read-only access to each app you specify. More specifically, they will be able to create remote PouchDBs pointing at *your* databases and sync *from* there to their PouchDBs. Gotanda does not yet support *read-write*, which is why we use the phrase "onlooker" instead of "friend", but you can potentially achieve that by two people mutually adding each other as onlookers. We also avoid using the phrase "watcher" (as in, watching a GitHub repo), since onlooking is a privilege that the creator user gives to an onlooker.
 
 Here's how the process works.
 
@@ -118,7 +118,7 @@ Step one: you tell Gotanda that a user with `onlookerId` can read your `app` dat
   - their GitHub *ID, not username*, which looks like `github-<number>`. You can convert a GitHub username to their numeric ID by visiting https://api.github.com/users/THEIR_USER_NAME and looking at the `id` key—see [this answer](https://stackoverflow.com/q/17308954/500207) for more details. N.B., we don't use usernames because they can [change](https://help.github.com/articles/what-happens-when-i-change-my-username/).
 - `app` is the same as above as the `/db/:app` endpoint described above.
 
-#### `* /creator/:creatorId/app/:app` (partial)
+#### `* /creator/:creatorId/app/:app` (some restrictions on methods and URLs for security)
 This is the onlooker equivalent to the `db/:app` endpoint above that you use to connect to your own apps. This is the endpoint that an onlooker provides to PouchDB to read the `app` database of the `creatorId` user, assuming the creator has shared this `app` with the signed-in onlooker.
 
 > Gotanda allows only GET requests (which are read-only), and some allowable PUT/POST requests (which tend to be write-oriented) to non-data CouchDB/PouchDB URLs like `_all_docs`. However, Gotanda has not been security-audited nor battle-tested so please be cautious with what data you ask users to put on Gotanda.
@@ -131,6 +131,15 @@ Delete the `onlookerId`'s access to *all* your apps.
 
 #### `DELETE /me/onlookers`
 Delete *all* onlookers' access to *all* your apps.
+
+#### `GET /me/onlookers`
+Returns a list of all `{creator, app}`-pairs you are an onlooker of, and all `{onlooker, app}`-pairs you have granted, in the following format:
+```ts
+type Links = {
+  onlookers: {onlooker: string, app: string}[],
+  creators: {creator: string, app: string}[],
+}
+```
 
 ### `GET /me/apps`
 Gives you (in JSON) an array of app names synced to this Gotanda server. This list matches the "app" part of `/db/:app` endpoint above.

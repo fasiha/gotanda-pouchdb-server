@@ -270,6 +270,13 @@ app.delete('/me/onlookers', ensureAuthenticated, async (req, res) => {
   res.json(await delOnlookers(userId));
 });
 
+app.get('/me/onlookers', ensureAuthenticated, async (req, res) => {
+  const user = req.user;
+  const userId = user && (req.user as IUser).gotandaId;
+  if (!userId) { return res.status(400).json('bad request'); }
+  res.json(await allOnlookerLinks(userId));
+});
+
 app.get(`/me/apps`, ensureAuthenticated, async (req, res) => {
   try {
     if (req.user && (req.user as IUser).gotandaId) {
