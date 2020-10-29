@@ -11,9 +11,10 @@ type Db = ReturnType<typeof levelup>;
 let db: Db;
 // This user `db` contains API tokens, so we don't export it out of this module at all. To facilitate testing, we
 // provide functions to open and close it
-export function openDb(path: string) { db = (require('level'))(path, {valueEncoding: 'json'}); }
+export function openDb(path = process.env.GOTANDA_USERS_DB || (__dirname + '/.data/gotanda-users-db')) {
+  db = (require('level'))(path, {valueEncoding: 'json'});
+}
 export async function closeDb() { return db.close(); }
-openDb(process.env.GOTANDA_USERS_DB || (__dirname + '/.data/gotanda-users-db'));
 
 const User = t.intersection([
   t.type({

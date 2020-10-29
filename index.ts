@@ -20,10 +20,12 @@ import {
   getAllApiTokenNames,
   getUserSafe,
   IUser,
-  validOnlooker
+  openDb,
+  validOnlooker,
 } from './users';
 
 mkdirpSync(__dirname + '/.data');
+openDb();
 
 const app = express();
 app.set('trust proxy', 1);
