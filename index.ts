@@ -229,14 +229,10 @@ app.put('/me/onlooker/:onlookerId/app/:app', ensureAuthenticated, async (req, re
   const userId = user && (req.user as IUser).gotandaId;
   const {onlookerId, app} = req.params;
   if (!(userId && app && !app.includes('/') && onlookerId && !onlookerId.includes('/'))) {
-    res.status(400).json('bad request');
-    return;
+    return res.status(400).json('bad request');
   }
   const onlooker = await getUserSafe(onlookerId);
-  if (!onlooker) {
-    res.status(400).json('bad onlooker');
-    return;
-  }
+  if (!onlooker) { return res.status(400).json('bad onlooker'); }
   res.json(await addOnlookerApp(userId, onlooker.gotandaId, app));
 });
 
@@ -247,14 +243,10 @@ app.delete('/me/onlooker/:onlookerId/app/:app', ensureAuthenticated, async (req,
   const userId = user && (req.user as IUser).gotandaId;
   const {onlookerId, app} = req.params;
   if (!(userId && app && !app.includes('/') && onlookerId && !onlookerId.includes('/'))) {
-    res.status(400).json('bad request');
-    return;
+    return res.status(400).json('bad request');
   }
   const onlooker = await getUserSafe(onlookerId);
-  if (!onlooker) {
-    res.status(400).json('bad onlooker');
-    return;
-  }
+  if (!onlooker) { return res.status(400).json('bad onlooker'); }
   res.json(await delOnlookerApp(userId, onlooker.gotandaId, app));
 });
 
@@ -264,15 +256,9 @@ app.delete('/me/onlooker/:onlookerId', ensureAuthenticated, async (req, res) => 
   const user = req.user;
   const userId = user && (req.user as IUser).gotandaId;
   const {onlookerId} = req.params;
-  if (!(userId && onlookerId && !onlookerId.includes('/'))) {
-    res.status(400).json('bad request');
-    return;
-  }
+  if (!(userId && onlookerId && !onlookerId.includes('/'))) { return res.status(400).json('bad request'); }
   const onlooker = await getUserSafe(onlookerId);
-  if (!onlooker) {
-    res.status(400).json('bad onlooker');
-    return;
-  }
+  if (!onlooker) { return res.status(400).json('bad onlooker'); }
   res.json(await delOnlooker(userId, onlooker.gotandaId));
 });
 
@@ -280,10 +266,7 @@ app.delete('/me/onlooker/:onlookerId', ensureAuthenticated, async (req, res) => 
 app.delete('/me/onlookers', ensureAuthenticated, async (req, res) => {
   const user = req.user;
   const userId = user && (req.user as IUser).gotandaId;
-  if (!userId) {
-    res.status(400).json('bad request');
-    return;
-  }
+  if (!userId) { return res.status(400).json('bad request'); }
   res.json(await delOnlookers(userId));
 });
 
