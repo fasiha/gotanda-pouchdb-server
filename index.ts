@@ -210,10 +210,11 @@ app.use(`/creator/:creatorId/app/:app`, ensureAuthenticated, async (req, res) =>
   }
   const creator = await getUserSafe(creatorId);
   if (!creator) { return res.status(401).json('bad request'); }
-  if (!await validOnlooker(creator.gotandaId, userId, app)) { return res.status(401).json('bad request'); }
-
-  if (req.method === 'GET' || req.url.startsWith('/_changes') || req.url.startsWith('/_all_docs') ||
-      req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
+  if (!(creator.gotandaId === userId || await validOnlooker(creator.gotandaId, userId, app))) {
+    return res.status(401).json('bad request');
+  }
+  if (creator.gotandaId === userId || req.method === 'GET' || req.url.startsWith('/_changes') ||
+      req.url.startsWith('/_all_docs') || req.url.startsWith('/_local') || req.url.startsWith('/_bulk_get')) {
     // this is read-only (GET) or it's a potential-write (POST, PUT, etc.) to a safe PouchDB/CouchDB endpoint, e.g.,
     // clients can POST to `_all_docs` to avoid sending a huge query string:
     // https://docs.couchdb.org/en/stable/api/database/bulk-api.html#post--db-_all_docs
@@ -337,9 +338,11 @@ app.get('/db/?$', ensureAuthenticated, (req, res) => {
 // All done
 app.listen(port, () => console.log(`App at 127.0.0.1:${port}`));
 
-/*
-const logRequest = (req: any, res: any, next: any) => {
-  console.log(Object.entries(req).filter(([_, v]) => typeof v === 'string').map(arr => arr.join(' => ')).join('\n* '));
+function logRequest(req: any, res: any, next: any) {
+  console.log(Object.entries(req)
+                  .filter(([_, v]) => typeof v === 'string')
+                  .concat([['user', JSON.stringify(req.user)]])
+                  .map(arr => arr.join(' => '))
+                  .join('\n* '));
   next();
 };
-*/
