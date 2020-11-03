@@ -22,13 +22,12 @@ This repo, Gotanda PouchDB, is intended to service apps that use [PouchDB](https
     SESSION_SECRET=
     GITHUB_CLIENT_ID=
     GITHUB_CLIENT_SECRET=
-    GITHUB_USERNAME_ALLOWLIST=
     GITHUB_ID_ALLOWLIST=
     ```
     - `URL`, where your app will be hosted, e.g., `https://my-awesome-app.glitch.me` or `http://127.0.0.1:3000` (don't put a trailing `/`, it breaks things).
     - `SESSION_SECRET` should a long random string used by the Express webserver to [secure](https://martinfowler.com/articles/session-secret.html) cookies. In a pinch, run the following in a Node session and use its output: `require('crypto').randomBytes(24).toString('base64')`
     - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are given to you by GitHub when you [register](https://github.com/settings/applications/new) your instance of Gotanda.
-    - But `GITHUB_USERNAME_ALLOWLIST` and `GITHUB_ID_ALLOWLIST` are yours: these are comma-separated lists of GitHub usernames and IDs respectively (see here for how to convert [username to id](https://stackoverflow.com/q/17308954)) that are allowed to use Gotanda. If *both* of these are `*`, then all GitHub users can use Gotanda. Otherwise, the *union* of usernames and IDs is allowed, so you can permission a given user's GitHub ID *or* their GitHub username (or both). Because [you can change your GitHub username](https://help.github.com/articles/what-happens-when-i-change-my-username/), but also because it's typically easier to specify username, we allow you to give either.
+    - But `GITHUB_ID_ALLOWLIST` is yours: a comma-separated list of GitHub IDs that are allowed to log into this Gotanda server. If this is `*`, then *all* GitHub users can use Gotanda; otherwise, anyone not on this list cannot log in. How to convert [GitHub username to id](https://stackoverflow.com/q/17308954): basically look at the `id` field in https://api.github.com/users/USERNAME. We use IDs instead of usernames because [you can change your GitHub username](https://help.github.com/articles/what-happens-when-i-change-my-username/).
 
 5. Install dependencies: `npm install`
 6. Build the TypeScript code to JavaScript: `npm run build`

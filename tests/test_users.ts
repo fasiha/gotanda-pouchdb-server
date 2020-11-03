@@ -45,7 +45,7 @@ tape('test allowlist', async t => {
   u.openDb(GOTANDA_USERS_DB);
 
   // test
-  let allowed = {id: new Set([] as string[]), username: new Set([] as string[])};
+  let allowed = new Set([] as string[]);
 
   const githubId = 'testId123';
   {
@@ -53,14 +53,7 @@ tape('test allowlist', async t => {
     t.ok(!testUser, 'user NOT created');
   }
 
-  allowed.username.add(partialGithubProfile.username);
-  {
-    const testUser = await u.findOrCreateGithub({...partialGithubProfile, id: githubId}, allowed);
-    t.ok(testUser, 'user created with username');
-  }
-
-  allowed.username = new Set();
-  allowed.id = new Set([githubId]);
+  allowed.add(githubId);
   {
     const testUser = await u.findOrCreateGithub({...partialGithubProfile, id: githubId}, allowed);
     t.ok(testUser, 'user created with id');

@@ -40,7 +40,6 @@ const {env, githubAllowlist} = (() => {
     SESSION_SECRET: t.string,
     URL: t.string,
     GITHUB_ID_ALLOWLIST: t.string,
-    GITHUB_USERNAME_ALLOWLIST: t.string,
   });
   const Env = t.type({parsed: secrets});
   const envDecode = Env.decode(require('dotenv').config());
@@ -52,9 +51,9 @@ const {env, githubAllowlist} = (() => {
 
   const stringToSet = (s: string) => new Set(s.split(',').map(s => s.trim()));
   let githubAllowlist =
-      (env.GITHUB_ID_ALLOWLIST === '*' && env.GITHUB_USERNAME_ALLOWLIST === '*')
+      (env.GITHUB_ID_ALLOWLIST === '*')
           ? '*' as const
-          : {id: stringToSet(env.GITHUB_ID_ALLOWLIST), username: stringToSet(env.GITHUB_USERNAME_ALLOWLIST)};
+          : stringToSet(env.GITHUB_ID_ALLOWLIST);
   return {env, githubAllowlist};
 })();
 

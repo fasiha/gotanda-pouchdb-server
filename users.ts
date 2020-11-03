@@ -91,11 +91,9 @@ async function base64urlRandom(nbytes: number) {
   return (await randomBytes(nbytes)).toString('base64').replace(/\//g, '_').replace(/\+/g, '-');
 }
 
-export async function findOrCreateGithub(profile: GitHubStrategy.Profile, allowlist: '*'|
-                                         {username: Set<string>, id: Set<string>}): Promise<IUser|undefined> {
+export async function findOrCreateGithub(profile: GitHubStrategy.Profile, allowlist: '*'|Set<string>): Promise<IUser|undefined> {
   if (typeof allowlist === 'object') {
-    const {username, id} = allowlist;
-    if (!((profile.username && username.has(profile.username)) || id.has(profile.id))) { return undefined; }
+    if (!allowlist.has(profile.id)) { return undefined; }
   }
   const githubId = `github-${profile.id}`;
   const hit = await getKey(githubId);
