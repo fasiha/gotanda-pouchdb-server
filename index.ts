@@ -1,11 +1,13 @@
 import express, {RequestHandler} from 'express';
 import {isRight} from 'fp-ts/lib/Either';
-import {lstat, readdir} from 'fs/promises';
+import {promises} from 'fs';
 import * as t from 'io-ts';
 import {sync as mkdirpSync} from 'mkdirp';
 import passport from 'passport';
 import GitHubStrategy from 'passport-github';
 import {Strategy as BearerStrategy} from 'passport-http-bearer';
+
+const {lstat, readdir} = promises;
 
 import {
   addOnlookerApp,
